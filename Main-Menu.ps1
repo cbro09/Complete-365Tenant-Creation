@@ -86,7 +86,7 @@ function Invoke-GitHubScript {
         & $scriptBlock @Parameters
     }
     catch {
-        Write-Error "Error executing ${ScriptPath} $($_.Exception.Message)"
+        Write-Error "Error executing ${ScriptPath}: $($_.Exception.Message)"
     }
 }
 
@@ -147,8 +147,7 @@ function Set-ServiceScopes {
             "Group.ReadWrite.All"
         )
         'Security' = @(
-            "SecurityActions.ReadWrite.All",
-            "ThreatIndicators.ReadWrite.OwnedBy"
+            "SecurityActions.ReadWrite.All"
         )
         'Purview' = @(
             "InformationProtectionPolicy.Read.All",
@@ -157,18 +156,33 @@ function Set-ServiceScopes {
     }
     
     if ($ServiceScopes.ContainsKey($Service)) {
-        Write-Host "🔄 Setting $Service permissions..." -ForegroundColor Yellow
+        $newScopes = $ServiceScopes[$Service]
+        $currentContext = Get-MgContext
         
-        try {
-            Disconnect-MgGraph -ErrorAction SilentlyContinue
-            Connect-MgGraph -Scopes $ServiceScopes[$Service] -NoWelcome
-            $Global:CurrentScopes = $ServiceScopes[$Service]
-            Write-Host "✅ $Service permissions set!" -ForegroundColor Green
-            return $true
+        # Check if we need to reconnect with different scopes
+        if ($currentContext -and ($Global:CurrentScopes -ne $newScopes)) {
+            Write-Host "🔄 Updating $Service permissions..." -ForegroundColor Yellow
+            
+            try {
+                # Reconnect with new scopes using same account
+                Disconnect-MgGraph -ErrorAction SilentlyContinue
+                Connect-MgGraph -Scopes $newScopes -NoWelcome
+                $Global:CurrentScopes = $newScopes
+                Write-Host "✅ $Service permissions updated!" -ForegroundColor Green
+                return $true
+            }
+            catch {
+                Write-Error "Failed to set $Service scopes: $($_.Exception.Message)"
+                return $false
+            }
         }
-        catch {
-            Write-Error "Failed to set $Service scopes: $($_.Exception.Message)"
+        elseif (!$currentContext) {
+            Write-Host "❌ Not connected to tenant. Please connect first." -ForegroundColor Red
             return $false
+        }
+        else {
+            Write-Host "✅ $Service permissions already active!" -ForegroundColor Green
+            return $true
         }
     }
     return $false
@@ -193,11 +207,11 @@ function Show-EntraMenu {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "Entra/CA-Policies.ps1" }
-            "2" { Invoke-GitHubScript -ScriptPath "Entra/Admin-Creation.ps1" }
-            "3" { Invoke-GitHubScript -ScriptPath "Entra/User-Creation.ps1" }
-            "4" { Invoke-GitHubScript -ScriptPath "Entra/Security-Groups.ps1" }
-            "5" { Invoke-GitHubScript -ScriptPath "Entra/Password-Policies.ps1" }
+            "1" { Invoke-GitHubScript -ScriptPath "entra/CA-Policies.ps1" }
+            "2" { Invoke-GitHubScript -ScriptPath "entra/Admin-Creation.ps1" }
+            "3" { Invoke-GitHubScript -ScriptPath "entra/User-Creation.ps1" }
+            "4" { Invoke-GitHubScript -ScriptPath "entra/Security-Groups.ps1" }
+            "5" { Invoke-GitHubScript -ScriptPath "entra/Password-Policies.ps1" }
             "0" { break }
             default { Write-Host "Invalid option!" -ForegroundColor Red }
         }
@@ -250,7 +264,7 @@ function Show-ExchangeMenu {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "Exchange/Shared-Mailboxes.ps1" }
+            "1" { Invoke-GitHubScript -ScriptPath "Exchange/Shared-MB-Creation.ps1" }
             "2" { Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1" }
             "3" { Invoke-GitHubScript -ScriptPath "Exchange/Archive-Policies.ps1" }
             "4" { Invoke-GitHubScript -ScriptPath "Exchange/Mail-Flow-Rules.ps1" }
