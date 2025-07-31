@@ -107,22 +107,19 @@ function Test-RequiredScopes {
 # Disable Security Defaults
 function Disable-SecurityDefaults {
     try {
-        Write-Host "🔒 Checking Security Defaults..." -ForegroundColor Yellow
-        
+        Write-Host "Checking Security Defaults..."
         $currentPolicy = Get-MgPolicyIdentitySecurityDefaultEnforcementPolicy
         
         if ($currentPolicy.IsEnabled -eq $true) {
-            Write-Host "❌ Security Defaults are enabled - disabling..." -ForegroundColor Red
-            
+            Write-Host "Security Defaults enabled - disabling..."
             Update-MgPolicyIdentitySecurityDefaultEnforcementPolicy -IsEnabled:$false
-            Write-Host "✅ Security Defaults disabled!" -ForegroundColor Green
+            Write-Host "Security Defaults disabled!"
         } else {
-            Write-Host "✅ Security Defaults already disabled" -ForegroundColor Green
+            Write-Host "Security Defaults already disabled"
         }
     }
     catch {
         Write-Error "Failed to disable Security Defaults: $($_.Exception.Message)"
-        Write-Host "💡 Try manual disable: Entra admin center → Identity → Overview → Properties → Manage security defaults" -ForegroundColor Yellow
         throw
     }
 }

@@ -163,7 +163,7 @@ function Set-ServiceScopes {
         $currentContext = Get-MgContext
         
         # Check if we need to reconnect with different scopes
-        if ($currentContext -and ($Global:CurrentScopes -ne $newScopes)) {
+        if ($currentContext -and (Compare-Object $Global:CurrentScopes $newScopes)) {
             Write-Host "🔄 Updating $Service permissions..." -ForegroundColor Yellow
             
             try {
