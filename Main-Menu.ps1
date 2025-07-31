@@ -133,7 +133,8 @@ function Set-ServiceScopes {
             "Policy.ReadWrite.ConditionalAccess",
             "Directory.ReadWrite.All",
             "RoleManagement.ReadWrite.Directory",
-            "Policy.ReadWrite.SecurityDefaults"
+            "Policy.ReadWrite.SecurityDefaults",
+            "Directory.AccessAsUser.All"
         )
         'Intune' = @(
             "DeviceManagementConfiguration.ReadWrite.All",

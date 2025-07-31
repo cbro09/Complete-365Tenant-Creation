@@ -20,7 +20,7 @@ $RequiredModules = @(
 
 # Required scopes for this script
 $RequiredScopes = @(
-    "Policy.ReadWrite.SecurityDefaults",
+    "Directory.AccessAsUser.All",
     "Policy.ReadWrite.ConditionalAccess",
     "Group.Read.All"
 )
@@ -108,18 +108,20 @@ function Test-RequiredScopes {
 function Disable-SecurityDefaults {
     try {
         Write-Host "Checking Security Defaults..."
-        $currentPolicy = Get-MgPolicyIdentitySecurityDefaultEnforcementPolicy
         
-        if ($currentPolicy.IsEnabled -eq $true) {
-            Write-Host "Security Defaults enabled - disabling..."
-            Update-MgPolicyIdentitySecurityDefaultEnforcementPolicy -IsEnabled:$false
-            Write-Host "Security Defaults disabled!"
+        $policy = Get-MgPolicyIdentitySecurityDefaultEnforcementPolicy
+        
+        if ($policy.IsEnabled -eq $true) {
+            Write-Host "Security Defaults are enabled. Disabling them now..."
+            Update-MgPolicyIdentitySecurityDefaultEnforcementPolicy -IsEnabled $false
+            Write-Host "Security Defaults have been disabled."
         } else {
-            Write-Host "Security Defaults already disabled"
+            Write-Host "Security Defaults are already disabled."
         }
     }
     catch {
         Write-Error "Failed to disable Security Defaults: $($_.Exception.Message)"
+        Write-Host "Try manual disable: Entra admin center → Identity → Override → Properties → Manage security defaults"
         throw
     }
 }
@@ -173,10 +175,6 @@ function Get-PolicyDefinitions {
                     ExcludeApplications = @()
                 }
                 ClientAppTypes = @("all")
-                Platforms = @{
-                    IncludePlatforms = @()
-                    ExcludePlatforms = @()
-                }
                 UserRiskLevels = @("high")
                 SignInRiskLevels = @()
                 Users = @{
@@ -200,10 +198,6 @@ function Get-PolicyDefinitions {
                     ExcludeApplications = @()
                 }
                 ClientAppTypes = @("browser", "mobileAppsAndDesktopClients")
-                Platforms = @{
-                    IncludePlatforms = @()
-                    ExcludePlatforms = @()
-                }
                 UserRiskLevels = @()
                 SignInRiskLevels = @()
                 Users = @{
@@ -254,10 +248,6 @@ function Get-PolicyDefinitions {
                     ExcludeApplications = @()
                 }
                 ClientAppTypes = @("all")
-                Platforms = @{
-                    IncludePlatforms = @()
-                    ExcludePlatforms = @()
-                }
                 UserRiskLevels = @("high")
                 SignInRiskLevels = @()
                 Users = @{
@@ -281,10 +271,6 @@ function Get-PolicyDefinitions {
                     ExcludeApplications = @()
                 }
                 ClientAppTypes = @("all")
-                Platforms = @{
-                    IncludePlatforms = @()
-                    ExcludePlatforms = @()
-                }
                 UserRiskLevels = @()
                 SignInRiskLevels = @("high", "medium")
                 Users = @{
@@ -389,8 +375,10 @@ try {
     Initialize-Modules
     $results = Start-CAPolicyCreation
     
-    Write-Host "`n🎉 Conditional Access policy creation completed!" -ForegroundColor Green
-    Write-Host "🔐 Security Defaults disabled, CA policies active" -ForegroundColor Green
+    if ($results) {
+        Write-Host "`n🎉 Conditional Access policy creation completed!" -ForegroundColor Green
+        Write-Host "🔐 Security Defaults disabled, CA policies active" -ForegroundColor Green
+    }
 }
 catch {
     Write-Error "❌ Script execution failed: $($_.Exception.Message)"
