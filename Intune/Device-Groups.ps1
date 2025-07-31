@@ -37,9 +37,9 @@ function Initialize-Modules {
 # Device group definitions
 $DeviceGroups = @(
     @{
-        Name = "Windows Devices"
-        Description = "All Windows devices managed by Intune"
-        MembershipRule = '(device.deviceOSType -eq "Windows")'
+        Name = "Windows Devices (Autopilot)"
+        Description = "All Windows (Autopilot) devices managed by Intune"
+        MembershipRule = '(device.devicePhysicalIds -any _ -eq "[OrderID]:WIN-AP-Corp")'
         GroupType = "DynamicMembership"
     },
     @{
