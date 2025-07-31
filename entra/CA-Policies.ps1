@@ -18,6 +18,13 @@ $RequiredModules = @(
     'Microsoft.Graph.Identity.SignIns'
 )
 
+# Required scopes for this script
+$RequiredScopes = @(
+    "Policy.ReadWrite.SecurityDefaults",
+    "Policy.ReadWrite.ConditionalAccess",
+    "Group.Read.All"
+)
+
 # Auto-install and import required modules
 function Initialize-Modules {
     Write-Host "🔧 Checking required modules..." -ForegroundColor Yellow
@@ -73,22 +80,41 @@ function Get-GroupId {
     }
 }
 
+# Verify required scopes
+function Test-RequiredScopes {
+    $context = Get-MgContext
+    if (!$context) {
+        Write-Error "❌ Not connected to Microsoft Graph"
+        return $false
+    }
+    
+    $currentScopes = $context.Scopes
+    $missingScopes = $RequiredScopes | Where-Object { $_ -notin $currentScopes }
+    
+    if ($missingScopes) {
+        Write-Host "❌ Missing required scopes:" -ForegroundColor Red
+        foreach ($scope in $missingScopes) {
+            Write-Host "   - $scope" -ForegroundColor Red
+        }
+        Write-Host "`n💡 Reconnect with: Connect-MgGraph -Scopes '$($RequiredScopes -join "', '")'" -ForegroundColor Yellow
+        return $false
+    }
+    
+    Write-Host "✅ All required scopes present" -ForegroundColor Green
+    return $true
+}
+
 # Disable Security Defaults
 function Disable-SecurityDefaults {
     try {
         Write-Host "🔒 Checking Security Defaults..." -ForegroundColor Yellow
         
-        $policyUri = "https://graph.microsoft.com/v1.0/policies/identitySecurityDefaultsEnforcementPolicy"
-        $currentPolicy = Invoke-MgGraphRequest -Uri $policyUri -Method GET
+        $currentPolicy = Get-MgPolicyIdentitySecurityDefaultEnforcementPolicy
         
-        if ($currentPolicy.isEnabled -eq $true) {
+        if ($currentPolicy.IsEnabled -eq $true) {
             Write-Host "❌ Security Defaults are enabled - disabling..." -ForegroundColor Red
             
-            $body = @{
-                isEnabled = $false
-            } | ConvertTo-Json
-            
-            Invoke-MgGraphRequest -Uri $policyUri -Method PATCH -Body $body -ContentType "application/json"
+            Update-MgPolicyIdentitySecurityDefaultEnforcementPolicy -IsEnabled:$false
             Write-Host "✅ Security Defaults disabled!" -ForegroundColor Green
         } else {
             Write-Host "✅ Security Defaults already disabled" -ForegroundColor Green
@@ -96,6 +122,7 @@ function Disable-SecurityDefaults {
     }
     catch {
         Write-Error "Failed to disable Security Defaults: $($_.Exception.Message)"
+        Write-Host "💡 Try manual disable: Entra admin center → Identity → Overview → Properties → Manage security defaults" -ForegroundColor Yellow
         throw
     }
 }
@@ -283,10 +310,8 @@ function Start-CAPolicyCreation {
     Write-Host "`n🚀 Creating Conditional Access Policies..." -ForegroundColor Cyan
     Write-Host "=" * 60 -ForegroundColor Cyan
     
-    # Verify connection
-    $context = Get-MgContext
-    if (!$context) {
-        Write-Error "❌ Not connected to Microsoft Graph. Please connect first."
+    # Verify scopes first
+    if (!(Test-RequiredScopes)) {
         return
     }
     
