@@ -96,6 +96,7 @@ function Connect-M365Tenant {
     
     try {
         # Basic connection for tenant info
+        Disconnect-MgGraph -ErrorAction SilentlyContinue
         Connect-MgGraph -Scopes "Organization.Read.All" -NoWelcome
         
         $context = Get-MgContext
@@ -130,7 +131,8 @@ function Set-ServiceScopes {
             "Group.ReadWrite.All", 
             "Policy.ReadWrite.ConditionalAccess",
             "Directory.ReadWrite.All",
-            "RoleManagement.ReadWrite.Directory"
+            "RoleManagement.ReadWrite.Directory",
+            "Policy.ReadWrite.SecurityDefaults"
         )
         'Intune' = @(
             "DeviceManagementConfiguration.ReadWrite.All",
