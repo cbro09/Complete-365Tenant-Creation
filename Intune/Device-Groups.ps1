@@ -45,19 +45,19 @@ $DeviceGroups = @(
     @{
         Name = "macOS Devices"
         Description = "All macOS devices managed by Intune"
-        MembershipRule = '(device.deviceOSType -eq "MacMDM")'
+        MembershipRule = '(device.deviceOSType -eq "macOS")'
         GroupType = "DynamicMembership"
     },
     @{
         Name = "iOS Devices"
         Description = "All iOS devices managed by Intune"
-        MembershipRule = '(device.deviceOSType -eq "iPhone") or (device.deviceOSType -eq "iPad")'
+        MembershipRule = '(device.deviceOSType -eq "iOS")'
         GroupType = "DynamicMembership"
     },
     @{
         Name = "Android Devices"
         Description = "All Android devices managed by Intune"
-        MembershipRule = '(device.deviceOSType -eq "Android") or (device.deviceOSType -eq "AndroidForWork")'
+        MembershipRule = '(device.deviceOSType -eq "Android")'
         GroupType = "DynamicMembership"
     },
     @{
@@ -95,6 +95,9 @@ function New-DeviceGroup {
             return $existingGroup
         }
         
+        # Create mail nickname (required for all groups)
+        $mailNickname = $GroupConfig.Name -replace '[^a-zA-Z0-9]', '' -replace '\s', ''
+        
         # Create group parameters
         $groupParams = @{
             DisplayName = $GroupConfig.Name
@@ -102,6 +105,7 @@ function New-DeviceGroup {
             GroupTypes = @("DynamicMembership")
             SecurityEnabled = $true
             MailEnabled = $false
+            MailNickname = $mailNickname
             MembershipRule = $GroupConfig.MembershipRule
             MembershipRuleProcessingState = "On"
         }
