@@ -129,6 +129,7 @@ function Set-ServiceScopes {
         'Entra' = @(
             "User.ReadWrite.All",
             "Group.ReadWrite.All", 
+            "Group.Read.All",
             "Policy.ReadWrite.ConditionalAccess",
             "Directory.ReadWrite.All",
             "RoleManagement.ReadWrite.Directory",
