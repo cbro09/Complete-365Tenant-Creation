@@ -35,34 +35,72 @@ function Initialize-Modules {
     Write-Host "🔧 Checking required modules..." -ForegroundColor Yellow
     
     foreach ($Module in $RequiredModules) {
+        # Check if module is installed
         if (!(Get-Module -ListAvailable -Name $Module)) {
             Write-Host "Installing $Module..." -ForegroundColor Yellow
             try {
                 Install-Module $Module -Force -Scope CurrentUser -AllowClobber -ErrorAction Stop
+                Write-Host "✅ Successfully installed $Module" -ForegroundColor Green
             }
             catch {
-                Write-Error "Failed to install $Module`: $($_.Exception.Message)"
+                Write-Host "❌ Failed to install $Module`: $($_.Exception.Message)" -ForegroundColor Red
                 return $false
             }
         }
+        
+        # Check if module is imported
         if (!(Get-Module -Name $Module)) {
             Write-Host "Importing $Module..." -ForegroundColor Yellow
             try {
                 Import-Module $Module -Force -ErrorAction Stop
+                Write-Host "✅ Successfully imported $Module" -ForegroundColor Green
             }
             catch {
-                Write-Error "Failed to import $Module`: $($_.Exception.Message)"
+                Write-Host "❌ Failed to import $Module`: $($_.Exception.Message)" -ForegroundColor Red
+                return $false
+            }
+        }
+        else {
+            Write-Host "✅ $Module already imported" -ForegroundColor Green
+        }
+    }
+    
+    # Verify Exchange cmdlets are available
+    Write-Host "🔧 Verifying Exchange cmdlets..." -ForegroundColor Yellow
+    $exchangeCmdlets = @('Get-AcceptedDomain', 'New-Mailbox', 'Set-Mailbox')
+    
+    foreach ($cmdlet in $exchangeCmdlets) {
+        if (!(Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
+            Write-Host "❌ Exchange cmdlet '$cmdlet' not available" -ForegroundColor Red
+            Write-Host "💡 Attempting to reconnect to Exchange Online..." -ForegroundColor Yellow
+            
+            try {
+                # Try to connect to Exchange Online
+                Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+                Write-Host "✅ Connected to Exchange Online" -ForegroundColor Green
+                break
+            }
+            catch {
+                Write-Host "❌ Failed to connect to Exchange Online: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "💡 Please use the main menu to connect to Exchange" -ForegroundColor Yellow
                 return $false
             }
         }
     }
-    Write-Host "✅ Modules ready!" -ForegroundColor Green
+    
+    Write-Host "✅ All modules and cmdlets ready!" -ForegroundColor Green
     return $true
 }
 
 # Get Exchange Online connection info
 function Get-ExchangeConnectionInfo {
     try {
+        # First check if Exchange cmdlets are available
+        if (!(Get-Command Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
+            Write-Host "   ❌ Exchange cmdlets not loaded" -ForegroundColor Red
+            return @{ Connected = $false, Reason = "CmdletsNotLoaded" }
+        }
+        
         # Try multiple methods to detect Exchange connection
         Write-Host "   🔍 Checking connection method 1: Get-ConnectionInformation..." -ForegroundColor Gray
         $connection = Get-ConnectionInformation -ErrorAction SilentlyContinue
@@ -80,16 +118,22 @@ function Get-ExchangeConnectionInfo {
         
         # Alternative method: Try running a simple Exchange command
         Write-Host "   🔍 Checking connection method 2: Test Exchange command..." -ForegroundColor Gray
-        $testResult = Get-AcceptedDomain -ResultSize 1 -ErrorAction SilentlyContinue
-        
-        if ($testResult) {
-            Write-Host "   ✅ Exchange Online is accessible (command test passed)" -ForegroundColor Green
-            return @{
-                Connected = $true
-                TenantName = "Connected"
-                UserPrincipalName = "Verified via command test"
-                Method = "CommandTest"
+        if (Get-Command Get-AcceptedDomain -ErrorAction SilentlyContinue) {
+            $testResult = Get-AcceptedDomain -ResultSize 1 -ErrorAction SilentlyContinue
+            
+            if ($testResult) {
+                Write-Host "   ✅ Exchange Online is accessible (command test passed)" -ForegroundColor Green
+                return @{
+                    Connected = $true
+                    TenantName = "Connected"
+                    UserPrincipalName = "Verified via command test"
+                    Method = "CommandTest"
+                }
             }
+        }
+        else {
+            Write-Host "   ❌ Get-AcceptedDomain cmdlet not available" -ForegroundColor Red
+            return @{ Connected = $false, Reason = "CmdletNotAvailable" }
         }
         
         Write-Host "   ❌ No Exchange connection detected" -ForegroundColor Red
@@ -98,7 +142,7 @@ function Get-ExchangeConnectionInfo {
         Write-Host "   ⚠️ Connection check error: $($_.Exception.Message)" -ForegroundColor Yellow
     }
     
-    return @{ Connected = $false }
+    return @{ Connected = $false, Reason = "Unknown" }
 }
 
 # Verify Exchange Online connection and permissions
@@ -108,8 +152,16 @@ function Test-ExchangeConnection {
     $connectionInfo = Get-ExchangeConnectionInfo
     
     if (!$connectionInfo.Connected) {
-        Write-Host "❌ Not connected to Exchange Online" -ForegroundColor Red
-        Write-Host "💡 Solution: Use option 8 to connect to tenant, then select Exchange" -ForegroundColor Yellow
+        Write-Host "❌ Exchange Online not accessible" -ForegroundColor Red
+        
+        if ($connectionInfo.Reason -eq "CmdletsNotLoaded") {
+            Write-Host "💡 Exchange cmdlets not loaded - this should have been handled in module initialization" -ForegroundColor Yellow
+        }
+        elseif ($connectionInfo.Reason -eq "CmdletNotAvailable") {
+            Write-Host "💡 Exchange cmdlets missing - module may not be properly imported" -ForegroundColor Yellow
+        }
+        
+        Write-Host "💡 Solution: Check Exchange connection in main menu (option 8)" -ForegroundColor Yellow
         return $false
     }
     
