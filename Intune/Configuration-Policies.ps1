@@ -100,26 +100,9 @@ function Update-PolicyDynamicValues {
 }
 
 # Policy assignment configuration
-function Get-PolicyAssignments {
-    return @{
-        "Default Web Pages" = @("Windows Devices (Autopilot)")
-        "Defender Configuration" = @("Windows Devices (Autopilot)")
-        "Disable UAC for Quickassist" = @("Windows Devices (Autopilot)")
-        "Edge Update Policy" = @("Windows Devices (Autopilot)")
-        "EDR Policy" = @("Windows Devices (Autopilot)")
-        "Enable Bitlocker" = @("Windows Devices (Autopilot)")
-        "Enable Built-in Administrator Account" = @("Windows Devices (Autopilot)")
-        "LAPS" = @("Windows Devices (Autopilot)")
-        "Office Updates Configuration" = @("Windows Devices (Autopilot)")
-        "OneDrive Configuration" = @("Windows Devices (Autopilot)")
-        "Outlook Configuration" = @("Windows Devices (Autopilot)")
-        "Power Options" = @("Windows Devices (Autopilot)")
-        "Prevent Users From Unenrolling Devices" = @("Windows Devices (Autopilot)", "Corporate Owned Devices")
-        "Sharepoint File Sync" = @("Windows Devices (Autopilot)")
-        "System Services" = @("Windows Devices (Autopilot)")
-        "Tamper Protection" = @("Windows Devices (Autopilot)")
-        "Web Sign-in Policy" = @("Windows Devices (Autopilot)")
-    }
+function Get-PolicyDefinitions {
+    $jsonContent = Get-Content ".\AllPolicies_Complete.json" | ConvertFrom-Json -AsHashtable
+    return $jsonContent
 }
 
 # Exported policy definitions with complete settings
