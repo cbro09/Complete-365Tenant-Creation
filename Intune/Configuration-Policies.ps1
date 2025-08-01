@@ -114,7 +114,8 @@ function Set-DynamicValues {
     }
     
     # Tenant ID (if GUID pattern exists)
-    if ($updatedJson -match '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}') {
+    $guidPattern = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
+    if ($updatedJson -match $guidPattern) {
         # Only replace if it's a placeholder, not a real tenant ID
         $updatedJson = $updatedJson -replace 'b2b2b2b2-c3c3-d4d4-e5e5-f6f6f6f6f6f6', $TenantValues.TenantId
     }
