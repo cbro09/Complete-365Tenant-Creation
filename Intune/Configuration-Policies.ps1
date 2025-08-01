@@ -122,8 +122,9 @@ function Update-PolicyDynamicValues {
 
 # Policy assignment configuration
 function Get-PolicyDefinitions {
-    $jsonContent = Get-Content ".\AllPolicies_Complete.json" | ConvertFrom-Json -AsHashtable
-    return $jsonContent
+$scriptPath = Split-Path -Parent $MyInvocation.ScriptName
+$jsonPath = Join-Path $scriptPath "AllPolicies_Complete.json"
+$jsonContent = Get-Content $jsonPath | ConvertFrom-Json -AsHashtable
 }
 
 # Create configuration policy with assignments
