@@ -98,7 +98,10 @@ function Get-ExchangeConnectionInfo {
         # First check if Exchange cmdlets are available
         if (!(Get-Command Get-ConnectionInformation -ErrorAction SilentlyContinue)) {
             Write-Host "   ❌ Exchange cmdlets not loaded" -ForegroundColor Red
-            return @{ Connected = $false, Reason = "CmdletsNotLoaded" }
+            return @{ 
+                Connected = $false
+                Reason = "CmdletsNotLoaded" 
+            }
         }
         
         # Try multiple methods to detect Exchange connection
@@ -133,7 +136,10 @@ function Get-ExchangeConnectionInfo {
         }
         else {
             Write-Host "   ❌ Get-AcceptedDomain cmdlet not available" -ForegroundColor Red
-            return @{ Connected = $false, Reason = "CmdletNotAvailable" }
+            return @{ 
+                Connected = $false
+                Reason = "CmdletNotAvailable" 
+            }
         }
         
         Write-Host "   ❌ No Exchange connection detected" -ForegroundColor Red
@@ -142,7 +148,10 @@ function Get-ExchangeConnectionInfo {
         Write-Host "   ⚠️ Connection check error: $($_.Exception.Message)" -ForegroundColor Yellow
     }
     
-    return @{ Connected = $false, Reason = "Unknown" }
+    return @{ 
+        Connected = $false
+        Reason = "Unknown" 
+    }
 }
 
 # Verify Exchange Online connection and permissions
