@@ -203,10 +203,11 @@ function Test-ExchangeConnection {
         if ($missingCmdlets.Count -gt 0) {
             Write-Host "  ⚠️ Exchange cmdlets not available: $($missingCmdlets -join ', ')" -ForegroundColor Yellow
             Write-Host "  🔄 Attempting to establish Exchange Online connection..." -ForegroundColor Cyan
+            Write-Host "  🌐 Using device code authentication (web browser method)..." -ForegroundColor Cyan
             
             try {
-                # Try to connect to Exchange Online (this should load the cmdlets)
-                Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+                # Use device code authentication - shows code and link for browser authentication
+                Connect-ExchangeOnline -Device -ShowBanner:$false -ErrorAction Stop
                 Write-Host "  ✅ Connected to Exchange Online successfully" -ForegroundColor Green
                 
                 # Re-check cmdlets after connection
