@@ -108,7 +108,7 @@ function Update-PolicyDynamicValues {
     $policyJson = $Policy | ConvertTo-Json -Depth 20
     
     # Replace SharePoint URLs
-    $policyJson = $policyJson -replace "https://bookerlawltd\.sharepoint\.com/", $TenantInfo.SharePointUrl
+    $policyJson = $policyJson -replace "https://contoso\.sharepoint\.com/", $TenantInfo.SharePointUrl
     
     # Replace LAPS admin names
     $policyJson = $policyJson -replace '"BLadmin"', "`"$LapsAdminName`""
