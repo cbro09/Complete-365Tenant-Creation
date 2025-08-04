@@ -192,6 +192,27 @@ function Set-ServiceScopes {
     return $false
 }
 
+# Global prerequisite tracking (place this at the top of your script)
+if (-not $Global:CompletedSteps) {
+    $Global:CompletedSteps = @{
+        SecurityGroups       = $false
+        DeviceGroups         = $false
+        ConditionalAccess    = $false
+        AdminAccounts        = $false
+    }
+}
+
+function Test-Prerequisites {
+    param([string]$RequiredStep)
+    
+    switch ($RequiredStep) {
+        "ConditionalAccess" { return $Global:CompletedSteps.SecurityGroups }
+        "AdminCreation" { return $Global:CompletedSteps.SecurityGroups }
+        "ConfigPolicies" { return $Global:CompletedSteps.DeviceGroups }
+        "CompliancePolicies" { return $Global:CompletedSteps.DeviceGroups }
+        default { return $true }
+    }
+}
 # Service menus
 function Show-EntraMenu {
     if (!(Set-ServiceScopes -Service "Entra")) { return }
