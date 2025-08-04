@@ -119,6 +119,21 @@ function Update-PolicyDynamicValues {
     # Convert back to hashtable
     return $policyJson | ConvertFrom-Json -AsHashtable
 }
+function Debug-EDRPolicy {
+    param([hashtable]$Policy)
+    
+    if ($Policy.name -eq "EDR Policy") {
+        Write-Host "`n🔍 DEBUG: EDR Policy JSON being sent:" -ForegroundColor Magenta
+        $debugJson = $Policy | ConvertTo-Json -Depth 20
+        Write-Host $debugJson -ForegroundColor Gray
+        
+        # Also save to file for inspection
+        $debugJson | Out-File -FilePath ".\EDR_Policy_Debug.json" -Encoding UTF8
+        Write-Host "💾 Saved debug JSON to: EDR_Policy_Debug.json" -ForegroundColor Yellow
+    }
+    
+    return $Policy
+}
 
 # Policy assignment configuration
 function Get-PolicyDefinitions {
@@ -180,7 +195,21 @@ function Get-PolicyDefinitions {
         return @()
     }
 }
-
+function Debug-EDRPolicy {
+    param([hashtable]$Policy)
+    
+    if ($Policy.name -eq "EDR Policy") {
+        Write-Host "`n🔍 DEBUG: EDR Policy JSON being sent:" -ForegroundColor Magenta
+        $debugJson = $Policy | ConvertTo-Json -Depth 20
+        Write-Host $debugJson -ForegroundColor Gray
+        
+        # Also save to file for inspection
+        $debugJson | Out-File -FilePath "C:\temp\EDR_Policy_Debug.json" -Encoding UTF8
+        Write-Host "💾 Saved debug JSON to: C:\temp\EDR_Policy_Debug.json" -ForegroundColor Yellow
+    }
+    
+    return $Policy
+}
 # Create configuration policy with assignments
 function New-ConfigurationPolicy {
     param(
@@ -202,7 +231,7 @@ function New-ConfigurationPolicy {
         
         # Update dynamic values
         $updatedPolicy = Update-PolicyDynamicValues -Policy $PolicyDefinition -TenantInfo $TenantInfo -LapsAdminName $LapsAdminName
-        
+        $updatedPolicy = Debug-EDRPolicy -Policy $updatedPolicy
         # Create the policy
         $newPolicy = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies" -Method POST -Body ($updatedPolicy | ConvertTo-Json -Depth 20)
         
