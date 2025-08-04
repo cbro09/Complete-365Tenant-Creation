@@ -278,13 +278,7 @@
               "useTemplateDefault": false,
               "settingValueTemplateId": "e5c7c98c-c854-4140-836e-bd22db59d651"
             },
-            "children": [
-              {
-  "settingDefinitionId": "device_vendor_msft_windowsadvancedthreatprotection_onboarding_fromconnector",
-  "settingInstanceTemplateReference": null,
-  "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance"
-}
-            ],
+            "children": [],
             "value": "device_vendor_msft_windowsadvancedthreatprotection_configurationtype_autofromconnector"
           },
           "settingInstanceTemplateReference": {
