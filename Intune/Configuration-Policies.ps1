@@ -123,44 +123,60 @@ function Update-PolicyDynamicValues {
 # Policy assignment configuration
 function Get-PolicyDefinitions {
     try {
-        # Try multiple path resolution methods for flexibility
-        $jsonContent = $null
+        Write-Host "  🔍 Attempting to load policy definitions..." -ForegroundColor Gray
         
-        # Method 1: Try current script directory
-        $scriptPath = Split-Path -Parent $MyInvocation.ScriptName
-        $jsonPath = Join-Path $scriptPath "AllPolicies_Complete.json"
-        
-        if (Test-Path $jsonPath) {
-            Write-Host "  📁 Loading policies from: $jsonPath" -ForegroundColor Gray
-            $jsonContent = Get-Content $jsonPath -Raw | ConvertFrom-Json -AsHashtable
-        }
-        else {
-            # Method 2: Try relative path from execution location
-            $alternativePath = ".\AllPolicies_Complete.json"
-            if (Test-Path $alternativePath) {
-                Write-Host "  📁 Loading policies from: $alternativePath" -ForegroundColor Gray
-                $jsonContent = Get-Content $alternativePath -Raw | ConvertFrom-Json -AsHashtable
+        # Method 1: Try GitHub download first (most reliable for your hub system)
+        try {
+            Write-Host "  🌐 Downloading policies from GitHub..." -ForegroundColor Cyan
+            $url = "https://raw.githubusercontent.com/$Global:GitHubRepo/$Global:GitHubBranch/Intune/AllPolicies_Complete.json"
+            $jsonContent = Invoke-RestMethod -Uri $url -ErrorAction Stop
+            
+            # Convert to hashtable if it's not already
+            if ($jsonContent -is [string]) {
+                $jsonContent = $jsonContent | ConvertFrom-Json -AsHashtable
+            } elseif ($jsonContent -is [array] -or $jsonContent -is [PSCustomObject]) {
+                $jsonContent = $jsonContent | ConvertTo-Json -Depth 20 | ConvertFrom-Json -AsHashtable
             }
-            else {
-                # Method 3: Try GitHub download as fallback
-                Write-Host "  🌐 JSON file not found locally, attempting GitHub download..." -ForegroundColor Yellow
-                $url = "https://raw.githubusercontent.com/$Global:GitHubRepo/$Global:GitHubBranch/Intune/AllPolicies_Complete.json"
-                $jsonContent = Invoke-RestMethod -Uri $url -ErrorAction Stop | ConvertFrom-Json -AsHashtable
-                Write-Host "  ✅ Downloaded policies from GitHub" -ForegroundColor Green
-            }
-        }
-        
-        if ($jsonContent -and $jsonContent.Count -gt 0) {
-            Write-Host "  ✅ Loaded $($jsonContent.Count) policy definitions" -ForegroundColor Green
+            
+            Write-Host "  ✅ Successfully downloaded $($jsonContent.Count) policies from GitHub" -ForegroundColor Green
             return $jsonContent
         }
-        else {
-            throw "No policies found in JSON content"
+        catch {
+            Write-Host "  ⚠️ GitHub download failed: $($_.Exception.Message)" -ForegroundColor Yellow
         }
+        
+        # Method 2: Try local file locations (fallback)
+        $possiblePaths = @(
+            ".\AllPolicies_Complete.json",
+            ".\Intune\AllPolicies_Complete.json",
+            "$PWD\AllPolicies_Complete.json"
+        )
+        
+        # Only try local paths if we have a valid script path
+        if ($MyInvocation.ScriptName -and $MyInvocation.ScriptName.Trim() -ne "") {
+            $scriptDir = Split-Path -Parent $MyInvocation.ScriptName
+            if ($scriptDir -and $scriptDir.Trim() -ne "") {
+                $possiblePaths += Join-Path $scriptDir "AllPolicies_Complete.json"
+            }
+        }
+        
+        foreach ($path in $possiblePaths) {
+            if ($path -and (Test-Path $path -ErrorAction SilentlyContinue)) {
+                Write-Host "  📁 Loading policies from local file: $path" -ForegroundColor Gray
+                $jsonContent = Get-Content $path -Raw | ConvertFrom-Json -AsHashtable
+                Write-Host "  ✅ Loaded $($jsonContent.Count) policies from local file" -ForegroundColor Green
+                return $jsonContent
+            }
+        }
+        
+        throw "Unable to load policies from GitHub or local files"
     }
     catch {
         Write-Error "Failed to load policy definitions: $($_.Exception.Message)"
-        Write-Host "  💡 Ensure AllPolicies_Complete.json is in the same directory as this script" -ForegroundColor Yellow
+        Write-Host "  💡 Troubleshooting:" -ForegroundColor Yellow
+        Write-Host "    - Check internet connection for GitHub download" -ForegroundColor Gray
+        Write-Host "    - Verify GitHub repository URL is correct" -ForegroundColor Gray
+        Write-Host "    - Ensure AllPolicies_Complete.json exists in repository" -ForegroundColor Gray
         return @()
     }
 }
