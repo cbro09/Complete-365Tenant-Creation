@@ -472,8 +472,10 @@ function Start-AutomationHub {
             "8" {
     if (Connect-M365Tenant) {
         Initialize-CompletedSteps
+        Write-Host "🔍 Prerequisite check completed!" -ForegroundColor Green
     }
 }
+
 
             "9" { Clear-ScriptCache }
             "0" { 
