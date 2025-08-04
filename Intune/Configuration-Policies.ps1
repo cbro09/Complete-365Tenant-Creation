@@ -364,6 +364,14 @@ function Start-ConfigurationPolicyCreation {
         foreach ($failed in $failedPolicies) {
             Write-Host "   - $failed" -ForegroundColor Red
         }
+        if ($failedPolicies -contains "EDR Policy") {
+        Write-Host "`n⚠️  MANUAL ACTION REQUIRED FOR EDR POLICY:" -ForegroundColor Yellow
+        Write-Host "   1. Go to: Intune Admin Center → Endpoint Security → Microsoft Defender for Endpoint" -ForegroundColor White
+        Write-Host "   2. Click: 'Connect Microsoft Defender for Endpoint to Microsoft Intune'" -ForegroundColor White  
+        Write-Host "   3. Complete setup in Defender Security Center" -ForegroundColor White
+        Write-Host "   4. Re-run this script to create EDR policy" -ForegroundColor White
+        Write-Host "💡 This is a one-time setup requirement" -ForegroundColor Gray
+    }
     }
     
     Write-Host "`n💡 Next Steps:" -ForegroundColor Yellow
