@@ -89,6 +89,18 @@ function Invoke-GitHubScript {
         Write-Error "Error executing ${ScriptPath}: $($_.Exception.Message)"
     }
 }
+function Test-GroupsExist {
+    param([string[]]$GroupNames)
+    $existingGroups = Get-MgGroup | Select-Object -ExpandProperty DisplayName
+    return ($GroupNames | ForEach-Object { $_ -in $existingGroups }) -notcontains $false
+}
+
+function Test-PoliciesExist {
+    param([string[]]$PolicyNames)
+    $existingPolicies = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies" -Method GET |
+        Select-Object -ExpandProperty value | Select-Object -ExpandProperty name
+    return ($PolicyNames | ForEach-Object { $_ -in $existingPolicies }) -notcontains $false
+}
 
 # Connect to Microsoft 365 Tenant
 function Connect-M365Tenant {
@@ -192,15 +204,30 @@ function Set-ServiceScopes {
     return $false
 }
 
-# Global prerequisite tracking (place this at the top of your script)
-if (-not $Global:CompletedSteps) {
+function Initialize-CompletedSteps {
     $Global:CompletedSteps = @{
-        SecurityGroups       = $false
-        DeviceGroups         = $false
-        ConditionalAccess    = $false
-        AdminAccounts        = $false
+        SecurityGroups = Test-GroupsExist -GroupNames @(
+            "NoMFA Exclusion Group", "BITS Admin Users", "SSPR Eligible Users",
+            "License - Business Basic", "License - Business Standard",
+            "License - Business Premium", "License - Exchange Online Plan 1",
+            "License - Exchange Online Plan 2"
+        )
+        DeviceGroups = Test-GroupsExist -GroupNames @(
+            "Windows Devices (Autopilot)", "macOS Devices", "iOS Devices",
+            "Android Devices", "Corporate Owned Devices", "Personal Devices",
+            "Pilot Device Group"
+        )
+        ConfigPolicies = Test-PoliciesExist -PolicyNames @(
+            "Defender Configuration", "Enable Bitlocker", "EDR Policy",
+            "Office Updates Configuration", "OneDrive Configuration",
+            "Outlook Configuration", "Tamper Protection", "Web Sign-in Policy"
+        )
+        ConditionalAccess = $false  # Placeholder until CA detection is added
+        AdminAccounts = $false      # Placeholder until Admin script is built
     }
 }
+
+
 
 function Test-Prerequisites {
     param([string]$RequiredStep)
@@ -412,7 +439,7 @@ function Show-MainMenu {
 # Main execution loop
 function Start-AutomationHub {
     Initialize-Modules
-    
+    Initialize-CompletedSteps
     do {
         Show-MainMenu
         $choice = Read-Host "Select option"
