@@ -280,16 +280,10 @@
             },
             "children": [
               {
-                "settingDefinitionId": "device_vendor_msft_windowsadvancedthreatprotection_onboarding_fromconnector",
-                "settingInstanceTemplateReference": null,
-                "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance",
-                "simpleSettingValue": {
-                  "settingValueTemplateReference": null,
-                  "valueState": "encryptedValueToken",
-                  "value": "b8c68a49-7107-4433-8d93-28eec158bd60",
-                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationSecretSettingValue"
-                }
-              }
+  "settingDefinitionId": "device_vendor_msft_windowsadvancedthreatprotection_onboarding_fromconnector",
+  "settingInstanceTemplateReference": null,
+  "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance"
+}
             ],
             "value": "device_vendor_msft_windowsadvancedthreatprotection_configurationtype_autofromconnector"
           },
