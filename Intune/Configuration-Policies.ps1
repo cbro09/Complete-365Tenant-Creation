@@ -122,9 +122,47 @@ function Update-PolicyDynamicValues {
 
 # Policy assignment configuration
 function Get-PolicyDefinitions {
-$scriptPath = Split-Path -Parent $MyInvocation.ScriptName
-$jsonPath = Join-Path $scriptPath "AllPolicies_Complete.json"
-$jsonContent = Get-Content $jsonPath | ConvertFrom-Json -AsHashtable
+    try {
+        # Try multiple path resolution methods for flexibility
+        $jsonContent = $null
+        
+        # Method 1: Try current script directory
+        $scriptPath = Split-Path -Parent $MyInvocation.ScriptName
+        $jsonPath = Join-Path $scriptPath "AllPolicies_Complete.json"
+        
+        if (Test-Path $jsonPath) {
+            Write-Host "  📁 Loading policies from: $jsonPath" -ForegroundColor Gray
+            $jsonContent = Get-Content $jsonPath -Raw | ConvertFrom-Json -AsHashtable
+        }
+        else {
+            # Method 2: Try relative path from execution location
+            $alternativePath = ".\AllPolicies_Complete.json"
+            if (Test-Path $alternativePath) {
+                Write-Host "  📁 Loading policies from: $alternativePath" -ForegroundColor Gray
+                $jsonContent = Get-Content $alternativePath -Raw | ConvertFrom-Json -AsHashtable
+            }
+            else {
+                # Method 3: Try GitHub download as fallback
+                Write-Host "  🌐 JSON file not found locally, attempting GitHub download..." -ForegroundColor Yellow
+                $url = "https://raw.githubusercontent.com/$Global:GitHubRepo/$Global:GitHubBranch/Intune/AllPolicies_Complete.json"
+                $jsonContent = Invoke-RestMethod -Uri $url -ErrorAction Stop | ConvertFrom-Json -AsHashtable
+                Write-Host "  ✅ Downloaded policies from GitHub" -ForegroundColor Green
+            }
+        }
+        
+        if ($jsonContent -and $jsonContent.Count -gt 0) {
+            Write-Host "  ✅ Loaded $($jsonContent.Count) policy definitions" -ForegroundColor Green
+            return $jsonContent
+        }
+        else {
+            throw "No policies found in JSON content"
+        }
+    }
+    catch {
+        Write-Error "Failed to load policy definitions: $($_.Exception.Message)"
+        Write-Host "  💡 Ensure AllPolicies_Complete.json is in the same directory as this script" -ForegroundColor Yellow
+        return @()
+    }
 }
 
 # Create configuration policy with assignments
