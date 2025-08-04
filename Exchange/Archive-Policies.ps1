@@ -165,12 +165,13 @@ function Initialize-Modules {
 function Test-ExchangeConnection {
     <#
     .SYNOPSIS
-        Verify Exchange Online connection using V3 module methods
+        Verify Exchange Online connection using multiple detection methods
     #>
     Write-Status-Message "Verifying Exchange Online connection..." -Type "Step"
     
     try {
-        # Use Get-ConnectionInformation instead of Get-PSSession (V3 module)
+        # Method 1: Try Get-ConnectionInformation (preferred for V3 module)
+        Write-Host "  🔍 Checking connection method 1: Get-ConnectionInformation..." -ForegroundColor Gray
         $connectionInfo = Get-ConnectionInformation -ErrorAction SilentlyContinue
         
         if ($connectionInfo -and $connectionInfo.State -eq "Connected") {
@@ -179,14 +180,37 @@ function Test-ExchangeConnection {
             Write-Host "  👤 Connected as: $($connectionInfo.UserPrincipalName)" -ForegroundColor Gray
             return $true
         }
-        else {
-            Write-Status-Message "No active Exchange Online connection found" -Type "Error"
-            Write-Host "  💡 Please ensure you're connected via the main menu system" -ForegroundColor Yellow
-            return $false
+        
+        # Method 2: Test Exchange cmdlets directly (fallback method)
+        Write-Host "  🔍 Checking connection method 2: Testing Exchange cmdlets..." -ForegroundColor Gray
+        
+        # Test with a simple Exchange Online command
+        $testDomains = Get-AcceptedDomain -ResultSize 1 -ErrorAction SilentlyContinue
+        if ($testDomains) {
+            Write-Status-Message "Exchange Online connection verified via cmdlet test" -Type "Success"
+            Write-Host "  🌐 Exchange Online is accessible and responding" -ForegroundColor Gray
+            return $true
         }
+        
+        # Method 3: Test mailbox access
+        Write-Host "  🔍 Checking connection method 3: Testing mailbox access..." -ForegroundColor Gray
+        $testMailbox = Get-Mailbox -ResultSize 1 -ErrorAction SilentlyContinue
+        if ($testMailbox) {
+            Write-Status-Message "Exchange Online connection verified via mailbox access" -Type "Success"
+            Write-Host "  📧 Mailbox data accessible" -ForegroundColor Gray
+            return $true
+        }
+        
+        # No connection detected
+        Write-Status-Message "No active Exchange Online connection found" -Type "Error"
+        Write-Host "  💡 Please ensure you're connected via the main menu system" -ForegroundColor Yellow
+        Write-Host "  🔄 Try selecting option 8 to reconnect to tenant" -ForegroundColor Yellow
+        return $false
+        
     }
     catch {
         Write-Status-Message "Failed to verify Exchange Online connection: $($_.Exception.Message)" -Type "Error"
+        Write-Host "  📝 This might indicate missing Exchange permissions or module issues" -ForegroundColor Gray
         return $false
     }
 }
@@ -403,7 +427,7 @@ function Start-MailboxConfiguration {
         if ($Global:ProcessingErrors.Count -gt 0) {
             Write-Host "`n📋 Error Details:" -ForegroundColor Red
             foreach ($errorMessage in $Global:ProcessingErrors) {
-                Write-Host "  • $error" -ForegroundColor Red
+                Write-Host "  • $errorMessage" -ForegroundColor Red
             }
         }
         
