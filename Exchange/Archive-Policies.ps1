@@ -117,7 +117,7 @@ function Test-QuotaValues {
 function Initialize-Modules {
     <#
     .SYNOPSIS
-        Initialize required PowerShell modules
+        Initialize required PowerShell modules and verify cmdlet availability
     #>
     Write-Status-Message "Initializing required modules..." -Type "Step"
     
@@ -149,6 +149,25 @@ function Initialize-Modules {
                     Import-Module -Name $Module -Force
                 }
                 Write-Host "  ✅ $Module version: $((Get-Module -Name $Module).Version)" -ForegroundColor Green
+                
+                # Verify Exchange cmdlets are available (they load dynamically after connection)
+                Write-Host "  🔍 Checking Exchange cmdlets availability..." -ForegroundColor Gray
+                $exchangeCmdlets = @('Get-AcceptedDomain', 'Get-Mailbox', 'Set-Mailbox', 'Enable-Mailbox')
+                $missingCmdlets = @()
+                
+                foreach ($cmdlet in $exchangeCmdlets) {
+                    if (-not (Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
+                        $missingCmdlets += $cmdlet
+                    }
+                }
+                
+                if ($missingCmdlets.Count -gt 0) {
+                    Write-Host "  ⚠️ Exchange cmdlets not yet loaded (this is normal before connection)" -ForegroundColor Yellow
+                    Write-Host "    Missing: $($missingCmdlets -join ', ')" -ForegroundColor Gray
+                }
+                else {
+                    Write-Host "  ✅ Exchange cmdlets are available" -ForegroundColor Green
+                }
             }
             
         }
@@ -165,13 +184,54 @@ function Initialize-Modules {
 function Test-ExchangeConnection {
     <#
     .SYNOPSIS
-        Verify Exchange Online connection using multiple detection methods
+        Verify Exchange Online connection and cmdlet availability
     #>
     Write-Status-Message "Verifying Exchange Online connection..." -Type "Step"
     
     try {
-        # Method 1: Try Get-ConnectionInformation (preferred for V3 module)
-        Write-Host "  🔍 Checking connection method 1: Get-ConnectionInformation..." -ForegroundColor Gray
+        # Step 1: Check if Exchange cmdlets are available
+        Write-Host "  🔍 Checking Exchange cmdlets availability..." -ForegroundColor Gray
+        $exchangeCmdlets = @('Get-AcceptedDomain', 'Get-Mailbox', 'Set-Mailbox', 'Enable-Mailbox')
+        $missingCmdlets = @()
+        
+        foreach ($cmdlet in $exchangeCmdlets) {
+            if (-not (Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
+                $missingCmdlets += $cmdlet
+            }
+        }
+        
+        if ($missingCmdlets.Count -gt 0) {
+            Write-Host "  ⚠️ Exchange cmdlets not available: $($missingCmdlets -join ', ')" -ForegroundColor Yellow
+            Write-Host "  🔄 Attempting to establish Exchange Online connection..." -ForegroundColor Cyan
+            
+            try {
+                # Try to connect to Exchange Online (this should load the cmdlets)
+                Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+                Write-Host "  ✅ Connected to Exchange Online successfully" -ForegroundColor Green
+                
+                # Re-check cmdlets after connection
+                $stillMissing = @()
+                foreach ($cmdlet in $exchangeCmdlets) {
+                    if (-not (Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
+                        $stillMissing += $cmdlet
+                    }
+                }
+                
+                if ($stillMissing.Count -gt 0) {
+                    Write-Status-Message "Exchange cmdlets still not available after connection attempt" -Type "Error"
+                    return $false
+                }
+            }
+            catch {
+                Write-Status-Message "Failed to connect to Exchange Online: $($_.Exception.Message)" -Type "Error"
+                Write-Host "  💡 Please ensure you have Exchange Administrator permissions" -ForegroundColor Yellow
+                Write-Host "  🔄 Try using option 8 to reconnect to the tenant" -ForegroundColor Yellow
+                return $false
+            }
+        }
+        
+        # Step 2: Test connection using multiple methods
+        Write-Host "  🔍 Testing connection method 1: Get-ConnectionInformation..." -ForegroundColor Gray
         $connectionInfo = Get-ConnectionInformation -ErrorAction SilentlyContinue
         
         if ($connectionInfo -and $connectionInfo.State -eq "Connected") {
@@ -181,10 +241,9 @@ function Test-ExchangeConnection {
             return $true
         }
         
-        # Method 2: Test Exchange cmdlets directly (fallback method)
-        Write-Host "  🔍 Checking connection method 2: Testing Exchange cmdlets..." -ForegroundColor Gray
+        # Step 3: Test with Exchange cmdlets directly
+        Write-Host "  🔍 Testing connection method 2: Exchange cmdlet test..." -ForegroundColor Gray
         
-        # Test with a simple Exchange Online command
         $testDomains = Get-AcceptedDomain -ResultSize 1 -ErrorAction SilentlyContinue
         if ($testDomains) {
             Write-Status-Message "Exchange Online connection verified via cmdlet test" -Type "Success"
@@ -192,8 +251,8 @@ function Test-ExchangeConnection {
             return $true
         }
         
-        # Method 3: Test mailbox access
-        Write-Host "  🔍 Checking connection method 3: Testing mailbox access..." -ForegroundColor Gray
+        # Step 4: Test mailbox access
+        Write-Host "  🔍 Testing connection method 3: Mailbox access test..." -ForegroundColor Gray
         $testMailbox = Get-Mailbox -ResultSize 1 -ErrorAction SilentlyContinue
         if ($testMailbox) {
             Write-Status-Message "Exchange Online connection verified via mailbox access" -Type "Success"
@@ -202,15 +261,14 @@ function Test-ExchangeConnection {
         }
         
         # No connection detected
-        Write-Status-Message "No active Exchange Online connection found" -Type "Error"
-        Write-Host "  💡 Please ensure you're connected via the main menu system" -ForegroundColor Yellow
-        Write-Host "  🔄 Try selecting option 8 to reconnect to tenant" -ForegroundColor Yellow
+        Write-Status-Message "Unable to verify Exchange Online connection" -Type "Error"
+        Write-Host "  💡 Please check your Exchange permissions and connection status" -ForegroundColor Yellow
         return $false
         
     }
     catch {
         Write-Status-Message "Failed to verify Exchange Online connection: $($_.Exception.Message)" -Type "Error"
-        Write-Host "  📝 This might indicate missing Exchange permissions or module issues" -ForegroundColor Gray
+        Write-Host "  📝 This might indicate missing Exchange permissions or authentication issues" -ForegroundColor Gray
         return $false
     }
 }
