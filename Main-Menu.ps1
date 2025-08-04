@@ -439,7 +439,7 @@ function Show-MainMenu {
 # Main execution loop
 function Start-AutomationHub {
     Initialize-Modules
-    Initialize-CompletedSteps
+
     do {
         Show-MainMenu
         $choice = Read-Host "Select option"
@@ -469,7 +469,12 @@ function Start-AutomationHub {
                 if ($Global:TenantConnection) { Show-PurviewMenu } 
                 else { Write-Host "Please connect to tenant first!" -ForegroundColor Red; Start-Sleep 2 }
             }
-            "8" { Connect-M365Tenant }
+            "8" {
+    if (Connect-M365Tenant) {
+        Initialize-CompletedSteps
+    }
+}
+
             "9" { Clear-ScriptCache }
             "0" { 
                 Write-Host "Goodbye! 👋" -ForegroundColor Cyan
