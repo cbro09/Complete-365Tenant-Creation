@@ -38,7 +38,7 @@
                 "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance",
                 "simpleSettingValue": {
                   "settingValueTemplateReference": null,
-                  "value": "https://bookerlawltd.sharepoint.com/",
+                  "value": "https://contoso.sharepoint.com/",
                   "@odata.type": "#microsoft.graph.deviceManagementConfigurationStringSettingValue"
                 }
               }
@@ -62,7 +62,7 @@
                 "simpleSettingCollectionValue": [
                   {
                     "settingValueTemplateReference": null,
-                    "value": "https://bookerlawltd.sharepoint.com/",
+                    "value": "https://contoso.sharepoint.com/",
                     "@odata.type": "#microsoft.graph.deviceManagementConfigurationStringSettingValue"
                   }
                 ],
