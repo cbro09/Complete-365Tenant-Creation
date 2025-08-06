@@ -99,22 +99,19 @@ function Invoke-GitHubScript {
 function Test-GroupsExist {
     param([string[]]$GroupNames)
     try {
-        Write-Host "  🔍 Checking for groups..." -ForegroundColor Gray
         $existingGroups = Get-MgGroup | Select-Object -ExpandProperty DisplayName
-        Write-Host "  📋 Found $($existingGroups.Count) total groups in tenant" -ForegroundColor Gray
-        
         $missingGroups = @()
+        
         foreach ($groupName in $GroupNames) {
-            if ($groupName -in $existingGroups) {
-                Write-Host "  ✅ Found: $groupName" -ForegroundColor Green
-            } else {
-                Write-Host "  ❌ Missing: $groupName" -ForegroundColor Red
+            if ($groupName -notin $existingGroups) {
                 $missingGroups += $groupName
             }
         }
         
         $result = $missingGroups.Count -eq 0
-        Write-Host "  📊 Result: $result (Missing: $($missingGroups.Count))" -ForegroundColor $(if ($result) { "Green" } else { "Red" })
+        if ($missingGroups.Count -gt 0) {
+            Write-Host "  ⚠️ Missing groups: $($missingGroups -join ', ')" -ForegroundColor Yellow
+        }
         return $result
     }
     catch {
@@ -145,9 +142,7 @@ function Test-ConditionalAccessPoliciesExist {
     }
 }
 
-function Initialize-CompletedSteps {
-    Write-Host "🔍 Checking tenant prerequisites..." -ForegroundColor Yellow
-    
+function Initialize-CompletedSteps {    
     $Global:CompletedSteps = @{
         SecurityGroups = Test-GroupsExist -GroupNames @(
             "NoMFA Exclusion Group", "BITS Admin Users", "SSPR Eligible Users",
@@ -168,8 +163,6 @@ function Initialize-CompletedSteps {
         ConditionalAccess = Test-ConditionalAccessPoliciesExist
         AdminAccounts = $false      # Placeholder until Admin script is built
     }
-    
-    Write-Host "✅ Prerequisites checked!" -ForegroundColor Green
 }
 
 function Test-Prerequisites {
@@ -328,6 +321,10 @@ function Set-ServiceScopes {
 function Show-EntraMenu {
     if (!(Set-ServiceScopes -Service "Entra")) { return }
     
+    # Auto-refresh prerequisites when entering Entra menu
+    Write-Host "🔄 Checking current prerequisites..." -ForegroundColor Gray
+    Initialize-CompletedSteps
+    
     do {
         Write-Host "`n" + "=" * 60 -ForegroundColor Cyan
         Write-Host "🏢 ENTRA ID AUTOMATION" -ForegroundColor Cyan
@@ -412,6 +409,10 @@ function Show-EntraMenu {
 function Show-IntuneMenu {
     if (!(Set-ServiceScopes -Service "Intune")) { return }
     
+    # Auto-refresh prerequisites when entering Intune menu
+    Write-Host "🔄 Checking current prerequisites..." -ForegroundColor Gray
+    Initialize-CompletedSteps
+    
     do {
         Write-Host "`n" + "=" * 60 -ForegroundColor Magenta
         Write-Host "📱 INTUNE AUTOMATION" -ForegroundColor Magenta
@@ -495,6 +496,10 @@ function Show-IntuneMenu {
 
 function Show-ExchangeMenu {
     if (!(Set-ServiceScopes -Service "Exchange")) { return }
+    
+    # Auto-refresh prerequisites when entering Exchange menu
+    Write-Host "🔄 Checking current prerequisites..." -ForegroundColor Gray
+    Initialize-CompletedSteps
     
     do {
         Write-Host "`n" + "=" * 60 -ForegroundColor Blue
@@ -710,15 +715,12 @@ function Start-AutomationHub {
             }
             "8" {
                 if (Connect-M365Tenant) {
+                    Write-Host "🔍 Checking tenant prerequisites..." -ForegroundColor Yellow
                     Initialize-CompletedSteps
-                    Write-Host "🔍 Prerequisite check completed!" -ForegroundColor Green
+                    Write-Host "✅ Prerequisites checked! Service menus will auto-refresh status." -ForegroundColor Green
                 }
             }
-            "9" { 
-                Clear-ScriptCache 
-                Write-Host "🔄 Refreshing prerequisite status..." -ForegroundColor Yellow
-                Initialize-CompletedSteps
-            }
+            "9" { Clear-ScriptCache }
             "0" { 
                 Write-Host "Goodbye! 👋" -ForegroundColor Cyan
                 if ($Global:TenantConnection) { Disconnect-MgGraph -ErrorAction SilentlyContinue }
