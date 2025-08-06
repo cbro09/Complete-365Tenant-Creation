@@ -4,11 +4,11 @@
 .SYNOPSIS
     Creates comprehensive Intune configuration policies with full settings
 .DESCRIPTION
-    Creates 17 production-ready configuration policies using exported settings data
+    Creates 18 production-ready configuration policies using exported settings data (now includes NGP Windows Default Policy)
 .AUTHOR
     CB & Claude Partnership
 .VERSION
-    1.0
+    1.1 - Added NGP Windows Default Policy
 #>
 
 # Required Modules
@@ -18,7 +18,8 @@ $RequiredModules = @(
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Identity.DirectoryManagement'
 )
-# Policy assignment configuration
+
+# Policy assignment configuration - UPDATED to include NGP Windows Default Policy
 function Get-PolicyAssignments {
     return @{
         "Default Web Pages" = @("Windows Devices (Autopilot)")
@@ -33,13 +34,15 @@ function Get-PolicyAssignments {
         "OneDrive Configuration" = @("Windows Devices (Autopilot)")
         "Outlook Configuration" = @("Windows Devices (Autopilot)")
         "Power Options" = @("Windows Devices (Autopilot)")
-        "Prevent Users From Unenrolling Devices" = @("Windows Devices (Autopilot)", "Corporate Owned Devices")
+        "Prevent Users From Unenrolling Devices" = @("Windows Devices (Autopilot)")
         "Sharepoint File Sync" = @("Windows Devices (Autopilot)")
         "System Services" = @("Windows Devices (Autopilot)")
         "Tamper Protection" = @("Windows Devices (Autopilot)")
         "Web Sign-in Policy" = @("Windows Devices (Autopilot)")
+        "NGP Windows Default Policy" = @("Windows Devices (Autopilot)")
     }
 }
+
 # Auto-install and import required modules
 function Initialize-Modules {
     Write-Host "🔧 Checking required modules..." -ForegroundColor Yellow
@@ -120,8 +123,7 @@ function Update-PolicyDynamicValues {
     return $policyJson | ConvertFrom-Json -AsHashtable
 }
 
-
-# Policy assignment configuration
+# Policy definitions loading function
 function Get-PolicyDefinitions {
     try {
         Write-Host "  🔍 Attempting to load policy definitions..." -ForegroundColor Gray
@@ -203,12 +205,18 @@ function New-ConfigurationPolicy {
         
         # Update dynamic values
         $updatedPolicy = Update-PolicyDynamicValues -Policy $PolicyDefinition -TenantInfo $TenantInfo -LapsAdminName $LapsAdminName
+        
         # Create the policy
         $newPolicy = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies" -Method POST -Body ($updatedPolicy | ConvertTo-Json -Depth 20)
         
         Write-Host "✅ Created: $($PolicyDefinition.name)" -ForegroundColor Green
         Write-Host "   Policy ID: $($newPolicy.id)" -ForegroundColor Gray
         Write-Host "   Settings: $($updatedPolicy.settings.Count)" -ForegroundColor Gray
+        
+        # Special handling for NGP Windows Default Policy
+        if ($PolicyDefinition.name -eq "NGP Windows Default Policy") {
+            Write-Host "   🛡️ Microsoft Defender Antivirus policy with comprehensive security settings" -ForegroundColor Cyan
+        }
         
         # Assign to device groups
         if ($DeviceGroupIds.Count -gt 0) {
@@ -273,7 +281,7 @@ function Start-ConfigurationPolicyCreation {
     $policies = Get-PolicyDefinitions
     $assignments = Get-PolicyAssignments
     
-    Write-Host "`n📋 Found $($policies.Count) policy definitions" -ForegroundColor Yellow
+    Write-Host "`n📋 Found $($policies.Count) policy definitions (including NGP Windows Default Policy)" -ForegroundColor Yellow
     
     # Resolve device group IDs
     Write-Host "`n🔍 Resolving device groups..." -ForegroundColor Yellow
@@ -336,13 +344,13 @@ function Start-ConfigurationPolicyCreation {
             Write-Host "   - $failed" -ForegroundColor Red
         }
         if ($failedPolicies -contains "EDR Policy") {
-        Write-Host "`n⚠️  MANUAL ACTION REQUIRED FOR EDR POLICY:" -ForegroundColor Yellow
-        Write-Host "   1. Go to: Intune Admin Center → Endpoint Security → Microsoft Defender for Endpoint" -ForegroundColor White
-        Write-Host "   2. Click: 'Connect Microsoft Defender for Endpoint to Microsoft Intune'" -ForegroundColor White  
-        Write-Host "   3. Complete setup in Defender Security Center" -ForegroundColor White
-        Write-Host "   4. Re-run this script to create EDR policy" -ForegroundColor White
-        Write-Host "💡 This is a one-time setup requirement" -ForegroundColor Gray
-    }
+            Write-Host "`n⚠️  MANUAL ACTION REQUIRED FOR EDR POLICY:" -ForegroundColor Yellow
+            Write-Host "   1. Go to: Intune Admin Center → Endpoint Security → Microsoft Defender for Endpoint" -ForegroundColor White
+            Write-Host "   2. Click: 'Connect Microsoft Defender for Endpoint to Microsoft Intune'" -ForegroundColor White  
+            Write-Host "   3. Complete setup in Defender Security Center" -ForegroundColor White
+            Write-Host "   4. Re-run this script to create EDR policy" -ForegroundColor White
+            Write-Host "💡 This is a one-time setup requirement" -ForegroundColor Gray
+        }
     }
     
     Write-Host "`n💡 Next Steps:" -ForegroundColor Yellow
@@ -355,7 +363,8 @@ function Start-ConfigurationPolicyCreation {
     Write-Host "   - BitLocker encryption with 30-day LAPS rotation" -ForegroundColor Gray
     Write-Host "   - OneDrive Known Folder Move" -ForegroundColor Gray  
     Write-Host "   - Edge browser policies with SharePoint homepage" -ForegroundColor Gray
-    Write-Host "   - Defender and EDR configurations" -ForegroundColor Gray
+    Write-Host "   - Comprehensive Defender antivirus protection (NGP Policy)" -ForegroundColor Green
+    Write-Host "   - EDR and advanced threat protection" -ForegroundColor Gray
     Write-Host "   - Power management and system services" -ForegroundColor Gray
     
     return $createdPolicies
@@ -368,7 +377,7 @@ try {
     
     if ($results) {
         Write-Host "`n🎉 Configuration policy creation completed!" -ForegroundColor Green
-        Write-Host "📋 Created $($results.Count) policies with full settings" -ForegroundColor Green
+        Write-Host "📋 Created $($results.Count) policies with full settings including NGP Windows Default Policy" -ForegroundColor Green
     }
 }
 catch {
