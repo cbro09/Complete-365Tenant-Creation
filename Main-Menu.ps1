@@ -367,10 +367,20 @@ function Show-EntraMenu {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "entra/Security-Groups.ps1" }
+            "1" { 
+                $result = Invoke-GitHubScript -ScriptPath "entra/Security-Groups.ps1"
+                if ($result) {
+                    Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                    Initialize-CompletedSteps
+                }
+            }
             "2" { 
                 if (Test-Prerequisites -RequiredStep "ConditionalAccess") {
-                    Invoke-GitHubScript -ScriptPath "entra/CA-Policies.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "entra/CA-Policies.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -378,7 +388,11 @@ function Show-EntraMenu {
             }
             "3" { 
                 if (Test-Prerequisites -RequiredStep "AdminCreation") {
-                    Invoke-GitHubScript -ScriptPath "entra/Admin-Creation.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "entra/Admin-Creation.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -386,7 +400,11 @@ function Show-EntraMenu {
             }
             "4" { 
                 if (Test-Prerequisites -RequiredStep "UserCreation") {
-                    Invoke-GitHubScript -ScriptPath "entra/User-Creation.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "entra/User-Creation.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -394,7 +412,11 @@ function Show-EntraMenu {
             }
             "5" { 
                 if (Test-Prerequisites -RequiredStep "PasswordPolicies") {
-                    Invoke-GitHubScript -ScriptPath "entra/Password-Policies.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "entra/Password-Policies.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Admin Accounts first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -455,10 +477,20 @@ function Show-IntuneMenu {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "Intune/Device-Groups.ps1" }
+            "1" { 
+                $result = Invoke-GitHubScript -ScriptPath "Intune/Device-Groups.ps1"
+                if ($result) {
+                    Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                    Initialize-CompletedSteps
+                }
+            }
             "2" { 
                 if (Test-Prerequisites -RequiredStep "ConfigPolicies") {
-                    Invoke-GitHubScript -ScriptPath "Intune/Configuration-Policies.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Intune/Configuration-Policies.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -466,7 +498,11 @@ function Show-IntuneMenu {
             }
             "3" { 
                 if (Test-Prerequisites -RequiredStep "CompliancePolicies") {
-                    Invoke-GitHubScript -ScriptPath "Intune/Compliance-Policies.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Intune/Compliance-Policies.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -474,7 +510,11 @@ function Show-IntuneMenu {
             }
             "4" { 
                 if (Test-Prerequisites -RequiredStep "AppDeployment") {
-                    Invoke-GitHubScript -ScriptPath "Intune/App-Deployment.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Intune/App-Deployment.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -482,7 +522,11 @@ function Show-IntuneMenu {
             }
             "5" { 
                 if (Test-Prerequisites -RequiredStep "AutopilotConfig") {
-                    Invoke-GitHubScript -ScriptPath "Intune/Autopilot-Config.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Intune/Autopilot-Config.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -532,10 +576,20 @@ function Show-ExchangeMenu {
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "Exchange/Shared-MB-Creation.ps1" }
+            "1" { 
+                $result = Invoke-GitHubScript -ScriptPath "Exchange/Shared-MB-Creation.ps1"
+                if ($result) {
+                    Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                    Initialize-CompletedSteps
+                }
+            }
             "2" { 
                 if (Test-Prerequisites -RequiredStep "ArchivePolicies") {
-                    Invoke-GitHubScript -ScriptPath "Exchange/Archive-Policies.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Exchange/Archive-Policies.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
                     Start-Sleep 2
@@ -543,13 +597,23 @@ function Show-ExchangeMenu {
             }
             "3" { 
                 if (Test-Prerequisites -RequiredStep "DistributionLists") {
-                    Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1"
+                    $result = Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1"
+                    if ($result) {
+                        Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                        Initialize-CompletedSteps
+                    }
                 } else {
                     Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
                     Start-Sleep 2
                 }
             }
-            "4" { Invoke-GitHubScript -ScriptPath "Exchange/Mail-Flow-Rules.ps1" }
+            "4" { 
+                $result = Invoke-GitHubScript -ScriptPath "Exchange/Mail-Flow-Rules.ps1"
+                if ($result) {
+                    Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
+                    Initialize-CompletedSteps
+                }
+            }
             "0" { break }
             default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
