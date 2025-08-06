@@ -492,16 +492,18 @@ function Start-DistributionListCreation {
         return
     }
     
-    # Step 2: Test Exchange connection  
-    Write-Host "🔗 Step 2: Test Exchange Connection" -ForegroundColor Cyan
+    # Step 2: Force Exchange Online PowerShell connection
+    Write-Host "🔗 Step 2: Establish Exchange Online PowerShell Connection" -ForegroundColor Cyan  
     if (!(Test-ExchangeConnection)) {
-        Write-Host "❌ Exchange connection test failed. Cannot continue." -ForegroundColor Red
+        Write-Host "❌ Could not establish Exchange Online PowerShell connection" -ForegroundColor Red
         Write-Host ""
-        Write-Host "🛠️  Possible solutions:" -ForegroundColor Yellow
-        Write-Host "   1. Run this script again (connection may have timed out)" -ForegroundColor White
-        Write-Host "   2. Manually connect: Connect-ExchangeOnline" -ForegroundColor White
-        Write-Host "   3. Verify you have Exchange Administrator permissions" -ForegroundColor White
-        Write-Host "   4. Check ExchangeOnlineManagement module version (needs v3.0+)" -ForegroundColor White
+        Write-Host "📝 Note: The main menu uses Microsoft Graph API connections, but" -ForegroundColor Yellow
+        Write-Host "   distribution group creation requires Exchange Online PowerShell cmdlets." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "🛠️  Alternative options:" -ForegroundColor Cyan
+        Write-Host "   1. Use Exchange Admin Center: https://admin.exchange.microsoft.com" -ForegroundColor White
+        Write-Host "   2. Try running this script in a new PowerShell window" -ForegroundColor White
+        Write-Host "   3. Contact your admin if Exchange PowerShell is disabled" -ForegroundColor White
         Write-Host ""
         Read-Host "Press Enter to return to Exchange menu"
         return
