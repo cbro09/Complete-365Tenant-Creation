@@ -73,21 +73,51 @@ function Test-ExchangeConnection {
     .SYNOPSIS
         Tests if Exchange Online connection is active
     .DESCRIPTION
-        Verifies connection established by main menu is still active
+        Verifies connection or establishes new Exchange Online PowerShell connection
     #>
     
     Write-Host "🔗 Testing Exchange Online connection..." -ForegroundColor Cyan
     
+    # Try multiple connection test methods
+    $connectionMethods = @(
+        { Get-AcceptedDomain -ErrorAction Stop | Select-Object -First 1 },
+        { Get-OrganizationConfig -ErrorAction Stop | Select-Object -First 1 },
+        { Get-ConnectionInformation -ErrorAction Stop | Select-Object -First 1 }
+    )
+    
+    foreach ($method in $connectionMethods) {
+        try {
+            $null = & $method
+            Write-Host "✅ Exchange Online connection active" -ForegroundColor Green
+            return $true
+        }
+        catch {
+            # Continue to next method
+        }
+    }
+    
+    # If no existing connection, try to establish one
+    Write-Host "⚠️  No active Exchange Online PowerShell connection found" -ForegroundColor Yellow
+    Write-Host "🔄 Attempting to establish Exchange Online connection..." -ForegroundColor Cyan
+    
     try {
-        # Test connection by running a simple cmdlet
+        # Try to connect using modern auth
+        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+        
+        # Test the new connection
         $null = Get-AcceptedDomain -ErrorAction Stop | Select-Object -First 1
-        Write-Host "✅ Exchange Online connection active" -ForegroundColor Green
+        Write-Host "✅ Exchange Online connection established successfully!" -ForegroundColor Green
         return $true
     }
     catch {
-        Write-Host "❌ Exchange Online connection test failed" -ForegroundColor Red
-        Write-Host "💡 Please ensure you're connected through the main menu first" -ForegroundColor Yellow
-        Write-Host "   Required permissions: $($RequiredRoles -join ', ')" -ForegroundColor Yellow
+        Write-Host "❌ Failed to establish Exchange Online connection" -ForegroundColor Red
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "💡 Troubleshooting steps:" -ForegroundColor Yellow
+        Write-Host "   1. Ensure you have the required permissions: $($RequiredRoles -join ', ')" -ForegroundColor White
+        Write-Host "   2. Try connecting manually: Connect-ExchangeOnline" -ForegroundColor White
+        Write-Host "   3. Verify your account has Exchange Online license" -ForegroundColor White
+        Write-Host "   4. Check if MFA is properly configured" -ForegroundColor White
         return $false
     }
 }
