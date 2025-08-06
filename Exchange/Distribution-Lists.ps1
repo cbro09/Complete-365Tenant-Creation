@@ -35,7 +35,7 @@ function Initialize-Modules {
     .SYNOPSIS
         Checks and imports required PowerShell modules
     .DESCRIPTION
-        Verifies ExchangeOnlineManagement module is available and imports it
+        Verifies ExchangeOnlineManagement module is available and properly imports it
     #>
     
     Write-Host "🔧 Checking Exchange Online PowerShell module..." -ForegroundColor Cyan
@@ -49,14 +49,33 @@ function Initialize-Modules {
                 Write-Host "❌ Module $Module not found. Installing..." -ForegroundColor Yellow
                 Install-Module $Module -Force -Scope CurrentUser -AllowClobber
                 Write-Host "✅ Module $Module installed successfully" -ForegroundColor Green
+                $installedModule = Get-Module -ListAvailable -Name $Module | Sort-Object Version -Descending | Select-Object -First 1
             } else {
                 Write-Host "✅ Module $Module found (Version: $($installedModule.Version))" -ForegroundColor Green
             }
             
-            # Import module if not already loaded
-            if (!(Get-Module -Name $Module)) {
-                Import-Module $Module -Force -Global
-                Write-Host "📦 Module $Module imported successfully" -ForegroundColor Green
+            # Remove any existing module to ensure clean import
+            Remove-Module $Module -Force -ErrorAction SilentlyContinue
+            
+            # Import module with explicit parameters
+            Write-Host "📦 Importing $Module module..." -ForegroundColor Cyan
+            Import-Module $Module -Force -Global -Scope Global
+            
+            # Verify key cmdlets are available after import
+            $keyCmdlets = @('Connect-ExchangeOnline', 'Get-AcceptedDomain', 'New-DistributionGroup')
+            $missingAfterImport = @()
+            
+            foreach ($cmdlet in $keyCmdlets) {
+                if (!(Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
+                    $missingAfterImport += $cmdlet
+                }
+            }
+            
+            if ($missingAfterImport.Count -gt 0) {
+                Write-Host "⚠️  Some cmdlets not available after import: $($missingAfterImport -join ', ')" -ForegroundColor Yellow
+                Write-Host "   This may indicate a module version or installation issue" -ForegroundColor Yellow
+            } else {
+                Write-Host "✅ Module $Module imported successfully with all required cmdlets" -ForegroundColor Green
             }
         }
         catch {
@@ -141,6 +160,12 @@ function Test-DistributionGroupExists {
     )
     
     try {
+        # Check if cmdlet is available first
+        if (!(Get-Command 'Get-DistributionGroup' -ErrorAction SilentlyContinue)) {
+            # If cmdlet not available, assume it doesn't exist (will be caught during creation)
+            return $false
+        }
+        
         $null = Get-DistributionGroup -Identity $Identity -ErrorAction Stop
         return $true
     }
@@ -152,6 +177,12 @@ function Test-DistributionGroupExists {
 # Get accepted domain for validation
 function Get-AcceptedDomains {
     try {
+        # First check if the cmdlet is available
+        if (!(Get-Command 'Get-AcceptedDomain' -ErrorAction SilentlyContinue)) {
+            Write-Host "⚠️  Get-AcceptedDomain cmdlet not available - Exchange Online connection may not be established" -ForegroundColor Yellow
+            return @()
+        }
+        
         Write-Host "🔍 Retrieving accepted domains..." -ForegroundColor Cyan
         $domains = Get-AcceptedDomain -ErrorAction Stop | Select-Object -ExpandProperty DomainName
         Write-Host "✅ Retrieved $($domains.Count) accepted domain(s)" -ForegroundColor Green
@@ -378,6 +409,14 @@ function New-InteractiveDistributionGroup {
     Write-Host ""
     Write-Host "🚀 Creating distribution group..." -ForegroundColor Cyan
     
+    # Final check that required cmdlets are available
+    if (!(Get-Command 'New-DistributionGroup' -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ New-DistributionGroup cmdlet not available" -ForegroundColor Red
+        Write-Host "   Exchange Online PowerShell connection is not properly established" -ForegroundColor Red
+        Write-Host "💡 Please run the script again to re-establish the connection" -ForegroundColor Yellow
+        return
+    }
+    
     try {
         $dgParams = @{
             Name = $groupName
@@ -457,7 +496,14 @@ function Start-DistributionListCreation {
     Write-Host "🔗 Step 2: Test Exchange Connection" -ForegroundColor Cyan
     if (!(Test-ExchangeConnection)) {
         Write-Host "❌ Exchange connection test failed. Cannot continue." -ForegroundColor Red
-        Write-Host "💡 Please connect through the main menu first" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "🛠️  Possible solutions:" -ForegroundColor Yellow
+        Write-Host "   1. Run this script again (connection may have timed out)" -ForegroundColor White
+        Write-Host "   2. Manually connect: Connect-ExchangeOnline" -ForegroundColor White
+        Write-Host "   3. Verify you have Exchange Administrator permissions" -ForegroundColor White
+        Write-Host "   4. Check ExchangeOnlineManagement module version (needs v3.0+)" -ForegroundColor White
+        Write-Host ""
+        Read-Host "Press Enter to return to Exchange menu"
         return
     }
     
