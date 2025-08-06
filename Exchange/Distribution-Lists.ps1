@@ -2,43 +2,43 @@
 
 <#
 .SYNOPSIS
-    Exchange Online Distribution List Manual Creation Script
+    Microsoft Graph API Distribution List Creation Script
 .DESCRIPTION
-    Interactive script for manually creating distribution lists in Exchange Online.
-    Integrates seamlessly with the Complete-365Tenant-Creation main menu system.
+    Interactive script for creating distribution lists using Microsoft Graph REST API.
+    Leverages existing Graph connection from the Complete-365Tenant-Creation main menu.
 .AUTHOR
     CB & Claude Partnership
 .VERSION
-    1.0
+    2.0 - REST API Edition
 .NOTES
-    - Requires Exchange Online PowerShell v3.5.1+
-    - Must be called through main menu authentication system
-    - Uses modern REST API (no Basic Authentication)
+    - Uses Microsoft Graph REST API (no Exchange PowerShell needed)
+    - Leverages existing Graph connection from main menu
+    - Modern REST API approach with better reliability
 .EXAMPLE
     Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1"
 #>
 
-# Required Modules and Roles
+# Required Modules (Microsoft.Graph for REST API calls)
 $RequiredModules = @(
-    'ExchangeOnlineManagement'
+    'Microsoft.Graph.Authentication'
 )
 
 $RequiredRoles = @(
     "Exchange Administrator",
-    "Global Administrator", 
-    "Mail Recipients"
+    "Global Administrator",
+    "Groups Administrator"
 )
 
 # Initialize modules function
 function Initialize-Modules {
     <#
     .SYNOPSIS
-        Checks and imports required PowerShell modules
+        Checks and imports required PowerShell modules for Graph API
     .DESCRIPTION
-        Verifies ExchangeOnlineManagement module is available and properly imports it
+        Verifies Microsoft.Graph.Authentication module for getting access tokens
     #>
     
-    Write-Host "🔧 Checking Exchange Online PowerShell module..." -ForegroundColor Cyan
+    Write-Host "🔧 Checking Microsoft Graph modules..." -ForegroundColor Cyan
     
     foreach ($Module in $RequiredModules) {
         try {
@@ -54,28 +54,10 @@ function Initialize-Modules {
                 Write-Host "✅ Module $Module found (Version: $($installedModule.Version))" -ForegroundColor Green
             }
             
-            # Remove any existing module to ensure clean import
-            Remove-Module $Module -Force -ErrorAction SilentlyContinue
-            
-            # Import module with explicit parameters
-            Write-Host "📦 Importing $Module module..." -ForegroundColor Cyan
-            Import-Module $Module -Force -Scope Global
-            
-            # Verify key cmdlets are available after import
-            $keyCmdlets = @('Connect-ExchangeOnline', 'Get-AcceptedDomain', 'New-DistributionGroup')
-            $missingAfterImport = @()
-            
-            foreach ($cmdlet in $keyCmdlets) {
-                if (!(Get-Command $cmdlet -ErrorAction SilentlyContinue)) {
-                    $missingAfterImport += $cmdlet
-                }
-            }
-            
-            if ($missingAfterImport.Count -gt 0) {
-                Write-Host "⚠️  Some cmdlets not available after import: $($missingAfterImport -join ', ')" -ForegroundColor Yellow
-                Write-Host "   This may indicate a module version or installation issue" -ForegroundColor Yellow
-            } else {
-                Write-Host "✅ Module $Module imported successfully with all required cmdlets" -ForegroundColor Green
+            # Import module if not already loaded
+            if (!(Get-Module -Name $Module)) {
+                Import-Module $Module -Force -Scope Global
+                Write-Host "📦 Module $Module imported successfully" -ForegroundColor Green
             }
         }
         catch {
@@ -86,57 +68,173 @@ function Initialize-Modules {
     return $true
 }
 
-# Test Exchange Online connection
-function Test-ExchangeConnection {
+# Get Graph API access token
+function Get-GraphAccessToken {
     <#
     .SYNOPSIS
-        Tests if Exchange Online connection is active
+        Gets Microsoft Graph access token from current session
     .DESCRIPTION
-        Verifies connection or establishes new Exchange Online PowerShell connection
+        Retrieves access token to make direct REST API calls to Microsoft Graph
     #>
     
-    Write-Host "🔗 Testing Exchange Online connection..." -ForegroundColor Cyan
-    
-    # Try multiple connection test methods
-    $connectionMethods = @(
-        { Get-AcceptedDomain -ErrorAction Stop | Select-Object -First 1 },
-        { Get-OrganizationConfig -ErrorAction Stop | Select-Object -First 1 },
-        { Get-ConnectionInformation -ErrorAction Stop | Select-Object -First 1 }
-    )
-    
-    foreach ($method in $connectionMethods) {
-        try {
-            $null = & $method
-            Write-Host "✅ Exchange Online connection active" -ForegroundColor Green
-            return $true
-        }
-        catch {
-            # Continue to next method
+    try {
+        # Try to get the current Graph context (from main menu connection)
+        $context = Get-MgContext -ErrorAction Stop
+        
+        if ($context -and $context.Account) {
+            Write-Host "✅ Using existing Microsoft Graph connection" -ForegroundColor Green
+            Write-Host "   Account: $($context.Account)" -ForegroundColor Cyan
+            
+            # Get access token
+            $token = [Microsoft.Graph.PowerShell.Authentication.GraphSession]::Instance.AuthenticationProvider.GetAuthenticationResultAsync().GetAwaiter().GetResult()
+            return $token.AccessToken
+        } else {
+            throw "No active Microsoft Graph context found"
         }
     }
-    
-    # If no existing connection, try to establish one
-    Write-Host "⚠️  No active Exchange Online PowerShell connection found" -ForegroundColor Yellow
-    Write-Host "🔄 Attempting to establish Exchange Online connection..." -ForegroundColor Cyan
+    catch {
+        Write-Host "⚠️  Could not retrieve Graph access token: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "💡 The main menu should have established Graph connection already" -ForegroundColor Yellow
+        return $null
+    }
+}
+
+# Make Graph API REST call
+function Invoke-GraphAPI {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Uri,
+        
+        [Parameter(Mandatory)]
+        [string]$Method,
+        
+        [Parameter(Mandatory)]
+        [string]$AccessToken,
+        
+        [Parameter()]
+        [hashtable]$Body = @{}
+    )
     
     try {
-        # Try to connect using modern auth
-        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+        $headers = @{
+            'Authorization' = "Bearer $AccessToken"
+            'Content-Type' = 'application/json'
+        }
         
-        # Test the new connection
-        $null = Get-AcceptedDomain -ErrorAction Stop | Select-Object -First 1
-        Write-Host "✅ Exchange Online connection established successfully!" -ForegroundColor Green
+        $params = @{
+            Uri = $Uri
+            Method = $Method
+            Headers = $headers
+        }
+        
+        if ($Method -in @('POST', 'PATCH', 'PUT') -and $Body.Count -gt 0) {
+            $params.Body = $Body | ConvertTo-Json -Depth 10
+        }
+        
+        $response = Invoke-RestMethod @params
+        return $response
+    }
+    catch {
+        $errorMessage = $_.Exception.Message
+        if ($_.Exception.Response) {
+            $errorDetails = $_.Exception.Response.Content.ReadAsStringAsync().Result
+            $errorMessage += " - $errorDetails"
+        }
+        throw $errorMessage
+    }
+}
+
+# Test Graph API connection
+function Test-GraphConnection {
+    <#
+    .SYNOPSIS
+        Tests Microsoft Graph API connection and permissions
+    .DESCRIPTION
+        Verifies Graph connection and required permissions for group management
+    #>
+    
+    Write-Host "🔗 Testing Microsoft Graph API connection..." -ForegroundColor Cyan
+    
+    # Get access token
+    $accessToken = Get-GraphAccessToken
+    if (!$accessToken) {
+        return $false
+    }
+    
+    try {
+        # Test basic Graph connectivity by getting organization info
+        Write-Host "🧪 Testing Graph API connectivity..." -ForegroundColor Cyan
+        $orgInfo = Invoke-GraphAPI -Uri "https://graph.microsoft.com/v1.0/organization" -Method "GET" -AccessToken $accessToken
+        Write-Host "✅ Connected to tenant: $($orgInfo.value[0].displayName)" -ForegroundColor Green
+        
+        # Test groups permission by listing groups (limited)
+        Write-Host "🔐 Testing group permissions..." -ForegroundColor Cyan
+        $testGroups = Invoke-GraphAPI -Uri "https://graph.microsoft.com/v1.0/groups?`$top=1" -Method "GET" -AccessToken $accessToken
+        Write-Host "✅ Group permissions verified" -ForegroundColor Green
+        
         return $true
     }
     catch {
-        Write-Host "❌ Failed to establish Exchange Online connection" -ForegroundColor Red
+        Write-Host "❌ Graph API connection test failed" -ForegroundColor Red
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ""
-        Write-Host "💡 Troubleshooting steps:" -ForegroundColor Yellow
-        Write-Host "   1. Ensure you have the required permissions: $($RequiredRoles -join ', ')" -ForegroundColor White
-        Write-Host "   2. Try connecting manually: Connect-ExchangeOnline" -ForegroundColor White
-        Write-Host "   3. Verify your account has Exchange Online license" -ForegroundColor White
-        Write-Host "   4. Check if MFA is properly configured" -ForegroundColor White
+        Write-Host "💡 Possible issues:" -ForegroundColor Yellow
+        Write-Host "   1. Insufficient Graph permissions for groups" -ForegroundColor White
+        Write-Host "   2. Required roles: $($RequiredRoles -join ', ')" -ForegroundColor White
+        Write-Host "   3. Main menu Graph connection may have expired" -ForegroundColor White
+        return $false
+    }
+}
+
+# Get accepted domains via Graph API
+function Get-AcceptedDomains {
+    <#
+    .SYNOPSIS
+        Gets accepted domains using Microsoft Graph API
+    .DESCRIPTION
+        Retrieves organization accepted domains for email validation
+    #>
+    
+    $accessToken = Get-GraphAccessToken
+    if (!$accessToken) {
+        return @()
+    }
+    
+    try {
+        Write-Host "🔍 Retrieving accepted domains via Graph API..." -ForegroundColor Cyan
+        $domains = Invoke-GraphAPI -Uri "https://graph.microsoft.com/v1.0/organization?`$expand=verifiedDomains" -Method "GET" -AccessToken $accessToken
+        
+        $acceptedDomains = $domains.value[0].verifiedDomains | Where-Object { $_.capabilities -contains "Email" } | Select-Object -ExpandProperty name
+        
+        Write-Host "✅ Retrieved $($acceptedDomains.Count) accepted domain(s)" -ForegroundColor Green
+        return $acceptedDomains
+    }
+    catch {
+        Write-Host "⚠️  Could not retrieve accepted domains: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "   Email validation will be limited to format checking only" -ForegroundColor Yellow
+        return @()
+    }
+}
+
+# Check if distribution group already exists
+function Test-DistributionGroupExists {
+    param(
+        [Parameter(Mandatory)]
+        [string]$MailNickname,
+        
+        [Parameter(Mandatory)]
+        [string]$AccessToken
+    )
+    
+    try {
+        # Search for existing group by mailNickname
+        $uri = "https://graph.microsoft.com/v1.0/groups?`$filter=mailNickname eq '$MailNickname'"
+        $existingGroups = Invoke-GraphAPI -Uri $uri -Method "GET" -AccessToken $AccessToken
+        
+        return ($existingGroups.value.Count -gt 0)
+    }
+    catch {
+        # If we can't check, assume it doesn't exist (will be caught during creation)
         return $false
     }
 }
@@ -150,49 +248,6 @@ function Test-EmailFormat {
     
     $emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return $EmailAddress -match $emailRegex
-}
-
-# Check if distribution group already exists
-function Test-DistributionGroupExists {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Identity
-    )
-    
-    try {
-        # Check if cmdlet is available first
-        if (!(Get-Command 'Get-DistributionGroup' -ErrorAction SilentlyContinue)) {
-            # If cmdlet not available, assume it doesn't exist (will be caught during creation)
-            return $false
-        }
-        
-        $null = Get-DistributionGroup -Identity $Identity -ErrorAction Stop
-        return $true
-    }
-    catch {
-        return $false
-    }
-}
-
-# Get accepted domain for validation
-function Get-AcceptedDomains {
-    try {
-        # First check if the cmdlet is available
-        if (!(Get-Command 'Get-AcceptedDomain' -ErrorAction SilentlyContinue)) {
-            Write-Host "⚠️  Get-AcceptedDomain cmdlet not available - Exchange Online connection may not be established" -ForegroundColor Yellow
-            return @()
-        }
-        
-        Write-Host "🔍 Retrieving accepted domains..." -ForegroundColor Cyan
-        $domains = Get-AcceptedDomain -ErrorAction Stop | Select-Object -ExpandProperty DomainName
-        Write-Host "✅ Retrieved $($domains.Count) accepted domain(s)" -ForegroundColor Green
-        return $domains
-    }
-    catch {
-        Write-Host "⚠️  Could not retrieve accepted domains: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Host "   Email validation will be limited to format checking only" -ForegroundColor Yellow
-        return @()
-    }
 }
 
 # Validate email domain against tenant domains
@@ -253,13 +308,45 @@ function Get-ValidatedInput {
     return $userInput
 }
 
-# Interactive distribution group creation
+# Convert email addresses to user IDs for member assignment
+function Get-UserIdsFromEmails {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$EmailAddresses,
+        
+        [Parameter(Mandatory)]
+        [string]$AccessToken
+    )
+    
+    $userIds = @()
+    
+    foreach ($email in $EmailAddresses) {
+        try {
+            $uri = "https://graph.microsoft.com/v1.0/users?`$filter=mail eq '$email' or userPrincipalName eq '$email'"
+            $user = Invoke-GraphAPI -Uri $uri -Method "GET" -AccessToken $AccessToken
+            
+            if ($user.value.Count -gt 0) {
+                $userIds += "https://graph.microsoft.com/v1.0/users/$($user.value[0].id)"
+                Write-Host "✅ Found user: $email" -ForegroundColor Green
+            } else {
+                Write-Host "⚠️  User not found: $email (skipped)" -ForegroundColor Yellow
+            }
+        }
+        catch {
+            Write-Host "⚠️  Error looking up user $email (skipped)" -ForegroundColor Yellow
+        }
+    }
+    
+    return $userIds
+}
+
+# Interactive distribution group creation using Graph API
 function New-InteractiveDistributionGroup {
     <#
     .SYNOPSIS
-        Interactive function to create a new distribution group
+        Interactive function to create a new distribution group via Graph API
     .DESCRIPTION
-        Collects user input and creates a distribution group with comprehensive validation
+        Collects user input and creates a distribution group using Microsoft Graph REST API
     #>
     
     Write-Host ""
@@ -269,7 +356,7 @@ function New-InteractiveDistributionGroup {
     Write-Host ""
     
     # Early exit option
-    Write-Host "🚀 Ready to create a new distribution group!" -ForegroundColor Green
+    Write-Host "🚀 Ready to create a new distribution group using Microsoft Graph API!" -ForegroundColor Green
     $proceed = Read-Host "Continue with distribution group creation? (Y/n)"
     if ($proceed -like "n*") {
         Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
@@ -277,11 +364,18 @@ function New-InteractiveDistributionGroup {
     }
     Write-Host ""
     
+    # Get Graph access token
+    $accessToken = Get-GraphAccessToken
+    if (!$accessToken) {
+        Write-Host "❌ Could not get Graph access token" -ForegroundColor Red
+        return
+    }
+    
     # Get accepted domains for validation
     $acceptedDomains = Get-AcceptedDomains
     if ($acceptedDomains.Count -eq 0) {
         Write-Host "⚠️  Could not retrieve accepted domains - email validation will be basic format only" -ForegroundColor Yellow
-        $acceptedDomains = @()  # Empty array for safety
+        $acceptedDomains = @()
     } else {
         Write-Host "📋 Available domains: $($acceptedDomains -join ', ')" -ForegroundColor Cyan
     }
@@ -301,16 +395,16 @@ function New-InteractiveDistributionGroup {
     
     # Email Address
     if ($acceptedDomains.Count -gt 0) {
-        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and (Test-EmailDomain `$userInput @('$($acceptedDomains -join "','")')) -and -not (Test-DistributionGroupExists `$userInput)" -ErrorMessage "Invalid email format, domain not accepted by tenant, or email already exists" -Example "marketing@$($acceptedDomains[0])" -AllowCancel
+        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and (Test-EmailDomain `$userInput @('$($acceptedDomains -join "','")')) -and -not (Test-DistributionGroupExists (`$userInput -split '@')[0] '$accessToken')" -ErrorMessage "Invalid email format, domain not accepted by tenant, or email already exists" -Example "marketing@$($acceptedDomains[0])" -AllowCancel
     } else {
-        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and -not (Test-DistributionGroupExists `$userInput)" -ErrorMessage "Invalid email format or email already exists" -Example "marketing@yourdomain.com" -AllowCancel
+        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and -not (Test-DistributionGroupExists (`$userInput -split '@')[0] '$accessToken')" -ErrorMessage "Invalid email format or email already exists" -Example "marketing@yourdomain.com" -AllowCancel
     }
     if ($null -eq $primaryEmail) {
         Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
         return
     }
     
-    # Alias (derived from email if not specified)
+    # Alias (derived from email)
     $suggestedAlias = ($primaryEmail -split '@')[0] -replace '[^a-zA-Z0-9]', ''
     $alias = Read-Host "Alias (press Enter to use '$suggestedAlias')"
     if ([string]::IsNullOrWhiteSpace($alias)) {
@@ -323,64 +417,28 @@ function New-InteractiveDistributionGroup {
         $description = "Distribution group: $groupName"
     }
     
-    # Owner (Manager)
-    Write-Host ""
-    Write-Host "👤 Group Owner Configuration:" -ForegroundColor Yellow
-    $owner = Read-Host "Group Owner Email (press Enter to use current user)"
-    
-    # Join/Leave Restrictions
-    Write-Host ""
-    Write-Host "🔐 Group Membership Restrictions:" -ForegroundColor Yellow
-    Write-Host "1. Open - Anyone can join/leave"
-    Write-Host "2. Closed - Only owners can add/remove members"  
-    Write-Host "3. ApprovalRequired - Owner approval required to join"
-    
-    do {
-        $restrictionChoice = Read-Host "Select membership restriction (1-3)"
-        switch ($restrictionChoice) {
-            "1" { 
-                $joinRestriction = "Open"
-                $departRestriction = "Open"
-                $valid = $true
-            }
-            "2" { 
-                $joinRestriction = "Closed"
-                $departRestriction = "Closed" 
-                $valid = $true
-            }
-            "3" { 
-                $joinRestriction = "ApprovalRequired"
-                $departRestriction = "Closed"
-                $valid = $true
-            }
-            default { 
-                Write-Host "Invalid selection. Please choose 1, 2, or 3." -ForegroundColor Red
-                $valid = $false
-            }
-        }
-    } while (!$valid)
-    
-    # External Email Configuration
-    Write-Host ""
-    Write-Host "🌐 External Email Configuration:" -ForegroundColor Yellow
-    $allowExternal = Read-Host "Allow external senders to email this group? (y/N)"
-    $requireAuth = $allowExternal -notlike "y*"
-    
     # Initial Members
     Write-Host ""
     Write-Host "👥 Initial Members (optional):" -ForegroundColor Yellow
     Write-Host "Enter email addresses separated by commas, or press Enter to skip"
     $membersInput = Read-Host "Initial members"
-    $members = @()
+    $memberUserIds = @()
     
     if (![string]::IsNullOrWhiteSpace($membersInput)) {
+        Write-Host "🔍 Looking up users..." -ForegroundColor Cyan
         $memberEmails = $membersInput -split ',' | ForEach-Object { $_.Trim() }
+        $validEmails = @()
+        
         foreach ($email in $memberEmails) {
             if (Test-EmailFormat $email) {
-                $members += $email
+                $validEmails += $email
             } else {
                 Write-Host "⚠️  Invalid email format: $email (skipped)" -ForegroundColor Yellow
             }
+        }
+        
+        if ($validEmails.Count -gt 0) {
+            $memberUserIds = Get-UserIdsFromEmails -EmailAddresses $validEmails -AccessToken $accessToken
         }
     }
     
@@ -392,11 +450,7 @@ function New-InteractiveDistributionGroup {
     Write-Host "Email: $primaryEmail" -ForegroundColor White  
     Write-Host "Alias: $alias" -ForegroundColor White
     Write-Host "Description: $description" -ForegroundColor White
-    Write-Host "Owner: $(if($owner) { $owner } else { 'Current user' })" -ForegroundColor White
-    Write-Host "Join Restriction: $joinRestriction" -ForegroundColor White
-    Write-Host "Leave Restriction: $departRestriction" -ForegroundColor White
-    Write-Host "External Senders: $(if($requireAuth) { 'Blocked' } else { 'Allowed' })" -ForegroundColor White
-    Write-Host "Initial Members: $(if($members.Count -gt 0) { $members.Count } else { 'None' })" -ForegroundColor White
+    Write-Host "Initial Members: $(if($memberUserIds.Count -gt 0) { $memberUserIds.Count } else { 'None' })" -ForegroundColor White
     Write-Host ""
     
     $confirm = Read-Host "Create this distribution group? (Y/n)"
@@ -405,58 +459,46 @@ function New-InteractiveDistributionGroup {
         return
     }
     
-    # Create Distribution Group
+    # Create Distribution Group via Graph API
     Write-Host ""
-    Write-Host "🚀 Creating distribution group..." -ForegroundColor Cyan
-    
-    # Final check that required cmdlets are available
-    if (!(Get-Command 'New-DistributionGroup' -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ New-DistributionGroup cmdlet not available" -ForegroundColor Red
-        Write-Host "   Exchange Online PowerShell connection is not properly established" -ForegroundColor Red
-        Write-Host "💡 Please run the script again to re-establish the connection" -ForegroundColor Yellow
-        return
-    }
+    Write-Host "🚀 Creating distribution group via Microsoft Graph API..." -ForegroundColor Cyan
     
     try {
-        $dgParams = @{
-            Name = $groupName
-            Alias = $alias
-            PrimarySmtpAddress = $primaryEmail
-            Type = "Distribution"
-            MemberJoinRestriction = $joinRestriction
-            MemberDepartRestriction = $departRestriction
-            RequireSenderAuthenticationEnabled = $requireAuth
+        # Prepare the group object for Graph API
+        $groupBody = @{
+            displayName = $groupName
+            mailNickname = $alias
+            description = $description
+            mailEnabled = $true
+            securityEnabled = $false
+            groupTypes = @()  # Empty array for distribution groups
         }
         
-        if ($description) {
-            $dgParams.Notes = $description
+        # Add members if specified
+        if ($memberUserIds.Count -gt 0) {
+            $groupBody["members@odata.bind"] = $memberUserIds
         }
         
-        if ($owner) {
-            $dgParams.ManagedBy = $owner
-        }
-        
-        if ($members.Count -gt 0) {
-            $dgParams.Members = $members
-        }
-        
-        $newGroup = New-DistributionGroup @dgParams
+        # Create the group
+        $newGroup = Invoke-GraphAPI -Uri "https://graph.microsoft.com/v1.0/groups" -Method "POST" -AccessToken $accessToken -Body $groupBody
         
         Write-Host "✅ Distribution group '$groupName' created successfully!" -ForegroundColor Green
-        Write-Host "📧 Email address: $primaryEmail" -ForegroundColor Green
-        Write-Host "🆔 Group ID: $($newGroup.ExternalDirectoryObjectId)" -ForegroundColor Green
+        Write-Host "📧 Email address: $($newGroup.mail)" -ForegroundColor Green
+        Write-Host "🆔 Group ID: $($newGroup.id)" -ForegroundColor Green
         
-        # Additional member management if needed
-        if ($members.Count -eq 0) {
+        # Show member status
+        if ($memberUserIds.Count -gt 0) {
+            Write-Host "👥 Members added: $($memberUserIds.Count)" -ForegroundColor Green
+        } else {
             Write-Host ""
             Write-Host "💡 Next Steps:" -ForegroundColor Yellow
-            Write-Host "   • Add members via Exchange Admin Center" -ForegroundColor White
-            Write-Host "   • Or use: Add-DistributionGroupMember -Identity '$primaryEmail' -Member 'user@domain.com'" -ForegroundColor White
+            Write-Host "   • Add members via Microsoft 365 Admin Center" -ForegroundColor White
+            Write-Host "   • Or use Graph API to add members programmatically" -ForegroundColor White
         }
         
         Write-Host ""
         Write-Host "🔗 Manage this group at:" -ForegroundColor Cyan
-        Write-Host "   https://admin.exchange.microsoft.com/#/recipients/groups/distribution" -ForegroundColor Blue
+        Write-Host "   https://admin.microsoft.com/AdminPortal/Home#/groups" -ForegroundColor Blue
         
     }
     catch {
@@ -464,9 +506,9 @@ function New-InteractiveDistributionGroup {
         Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
         
         # Specific error guidance
-        if ($_.Exception.Message -like "*already exists*") {
+        if ($_.Exception.Message -like "*already exists*" -or $_.Exception.Message -like "*duplicate*") {
             Write-Host "💡 A group with this name or email address already exists" -ForegroundColor Yellow
-        } elseif ($_.Exception.Message -like "*permission*") {
+        } elseif ($_.Exception.Message -like "*permission*" -or $_.Exception.Message -like "*forbidden*") {
             Write-Host "💡 Insufficient permissions. Required roles: $($RequiredRoles -join ', ')" -ForegroundColor Yellow
         } elseif ($_.Exception.Message -like "*domain*") {
             Write-Host "💡 Email domain not accepted by your tenant" -ForegroundColor Yellow
@@ -478,74 +520,27 @@ function New-InteractiveDistributionGroup {
 function Start-DistributionListCreation {
     <#
     .SYNOPSIS
-        Main execution function for distribution list creation
+        Main execution function for distribution list creation using Graph API
     .DESCRIPTION
-        Orchestrates the entire distribution list creation process
+        Orchestrates the entire distribution list creation process using REST API
     #>
     
-    Write-Host "🔧 Loading Distribution List Creation Script..." -ForegroundColor Cyan
+    Write-Host "🔧 Loading Distribution List Creation Script (REST API Edition)..." -ForegroundColor Cyan
     
     # Step 1: Initialize modules
-    Write-Host "📦 Step 1: Initialize Modules" -ForegroundColor Cyan
+    Write-Host "📦 Step 1: Initialize Graph Modules" -ForegroundColor Cyan
     if (!(Initialize-Modules)) {
         Write-Host "❌ Module initialization failed. Cannot continue." -ForegroundColor Red
         return
     }
     
-    # Step 2: Force Exchange Online PowerShell connection
-    Write-Host "🔗 Step 2: Establish Exchange Online PowerShell Connection" -ForegroundColor Cyan
-    
-    # Skip any detection - force fresh connection
-    Write-Host "⚠️  Exchange Online PowerShell cmdlets not available in current session" -ForegroundColor Yellow
-    Write-Host "🔄 Main menu uses Graph API - establishing dedicated Exchange PowerShell connection..." -ForegroundColor Cyan
-    Write-Host ""
-    
-    try {
-        # Clean disconnect
-        Write-Host "🧹 Cleaning existing connections..." -ForegroundColor Cyan
-        try { Disconnect-ExchangeOnline -Confirm:$false -InformationAction SilentlyContinue -ErrorAction SilentlyContinue } catch { }
-        
-        # Force fresh connection
-        Write-Host "🔐 Connecting to Exchange Online PowerShell..." -ForegroundColor Yellow
-        Write-Host "   You will be prompted for authentication (separate from main menu)" -ForegroundColor Yellow
-        Start-Sleep -Seconds 2
-        
-        Connect-ExchangeOnline -ShowBanner:$false -ShowProgress:$true -ErrorAction Stop
-        
-        # Wait for connection to stabilize
-        Write-Host "⏳ Waiting for connection to stabilize..." -ForegroundColor Cyan
-        Start-Sleep -Seconds 5
-        
-        # Test each cmdlet individually
-        Write-Host "🧪 Testing Exchange cmdlets..." -ForegroundColor Cyan
-        
-        # Test Get-AcceptedDomain
-        try {
-            $domains = Get-AcceptedDomain -ErrorAction Stop
-            Write-Host "✅ Get-AcceptedDomain working - found $($domains.Count) domains" -ForegroundColor Green
-        } catch {
-            throw "Get-AcceptedDomain failed: $($_.Exception.Message)"
-        }
-        
-        # Test New-DistributionGroup cmdlet exists
-        if (Get-Command 'New-DistributionGroup' -ErrorAction SilentlyContinue) {
-            Write-Host "✅ New-DistributionGroup cmdlet available" -ForegroundColor Green
-        } else {
-            throw "New-DistributionGroup cmdlet not available after connection"
-        }
-        
-        Write-Host "✅ Exchange Online PowerShell connection fully established!" -ForegroundColor Green
-        
-    } catch {
-        Write-Host "❌ Failed to establish Exchange Online PowerShell connection" -ForegroundColor Red
-        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    # Step 2: Test Graph API connection
+    Write-Host "🔗 Step 2: Test Microsoft Graph API Connection" -ForegroundColor Cyan
+    if (!(Test-GraphConnection)) {
+        Write-Host "❌ Graph API connection test failed. Cannot continue." -ForegroundColor Red
         Write-Host ""
-        Write-Host "📝 The main menu's Graph connections don't provide Exchange PowerShell cmdlets." -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "🛠️  Alternative solutions:" -ForegroundColor Cyan
-        Write-Host "   1. Use Exchange Admin Center: https://admin.exchange.microsoft.com" -ForegroundColor White
-        Write-Host "   2. Try in new PowerShell window: Connect-ExchangeOnline" -ForegroundColor White
-        Write-Host "   3. Check if your org allows Exchange PowerShell access" -ForegroundColor White
+        Write-Host "💡 This script uses the existing Graph connection from the main menu." -ForegroundColor Yellow
+        Write-Host "   If connection issues persist, try refreshing the main menu connection." -ForegroundColor Yellow
         Write-Host ""
         Read-Host "Press Enter to return to Exchange menu"
         return
