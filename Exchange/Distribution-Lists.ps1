@@ -493,17 +493,59 @@ function Start-DistributionListCreation {
     }
     
     # Step 2: Force Exchange Online PowerShell connection
-    Write-Host "🔗 Step 2: Establish Exchange Online PowerShell Connection" -ForegroundColor Cyan  
-    if (!(Test-ExchangeConnection)) {
-        Write-Host "❌ Could not establish Exchange Online PowerShell connection" -ForegroundColor Red
+    Write-Host "🔗 Step 2: Establish Exchange Online PowerShell Connection" -ForegroundColor Cyan
+    
+    # Skip any detection - force fresh connection
+    Write-Host "⚠️  Exchange Online PowerShell cmdlets not available in current session" -ForegroundColor Yellow
+    Write-Host "🔄 Main menu uses Graph API - establishing dedicated Exchange PowerShell connection..." -ForegroundColor Cyan
+    Write-Host ""
+    
+    try {
+        # Clean disconnect
+        Write-Host "🧹 Cleaning existing connections..." -ForegroundColor Cyan
+        try { Disconnect-ExchangeOnline -Confirm:$false -InformationAction SilentlyContinue -ErrorAction SilentlyContinue } catch { }
+        
+        # Force fresh connection
+        Write-Host "🔐 Connecting to Exchange Online PowerShell..." -ForegroundColor Yellow
+        Write-Host "   You will be prompted for authentication (separate from main menu)" -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+        
+        Connect-ExchangeOnline -ShowBanner:$false -ShowProgress:$true -ErrorAction Stop
+        
+        # Wait for connection to stabilize
+        Write-Host "⏳ Waiting for connection to stabilize..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 5
+        
+        # Test each cmdlet individually
+        Write-Host "🧪 Testing Exchange cmdlets..." -ForegroundColor Cyan
+        
+        # Test Get-AcceptedDomain
+        try {
+            $domains = Get-AcceptedDomain -ErrorAction Stop
+            Write-Host "✅ Get-AcceptedDomain working - found $($domains.Count) domains" -ForegroundColor Green
+        } catch {
+            throw "Get-AcceptedDomain failed: $($_.Exception.Message)"
+        }
+        
+        # Test New-DistributionGroup cmdlet exists
+        if (Get-Command 'New-DistributionGroup' -ErrorAction SilentlyContinue) {
+            Write-Host "✅ New-DistributionGroup cmdlet available" -ForegroundColor Green
+        } else {
+            throw "New-DistributionGroup cmdlet not available after connection"
+        }
+        
+        Write-Host "✅ Exchange Online PowerShell connection fully established!" -ForegroundColor Green
+        
+    } catch {
+        Write-Host "❌ Failed to establish Exchange Online PowerShell connection" -ForegroundColor Red
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ""
-        Write-Host "📝 Note: The main menu uses Microsoft Graph API connections, but" -ForegroundColor Yellow
-        Write-Host "   distribution group creation requires Exchange Online PowerShell cmdlets." -ForegroundColor Yellow
+        Write-Host "📝 The main menu's Graph connections don't provide Exchange PowerShell cmdlets." -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "🛠️  Alternative options:" -ForegroundColor Cyan
+        Write-Host "🛠️  Alternative solutions:" -ForegroundColor Cyan
         Write-Host "   1. Use Exchange Admin Center: https://admin.exchange.microsoft.com" -ForegroundColor White
-        Write-Host "   2. Try running this script in a new PowerShell window" -ForegroundColor White
-        Write-Host "   3. Contact your admin if Exchange PowerShell is disabled" -ForegroundColor White
+        Write-Host "   2. Try in new PowerShell window: Connect-ExchangeOnline" -ForegroundColor White
+        Write-Host "   3. Check if your org allows Exchange PowerShell access" -ForegroundColor White
         Write-Host ""
         Read-Host "Press Enter to return to Exchange menu"
         return
