@@ -99,10 +99,26 @@ function Invoke-GitHubScript {
 function Test-GroupsExist {
     param([string[]]$GroupNames)
     try {
+        Write-Host "  🔍 Checking for groups..." -ForegroundColor Gray
         $existingGroups = Get-MgGroup | Select-Object -ExpandProperty DisplayName
-        return ($GroupNames | ForEach-Object { $_ -in $existingGroups }) -notcontains $false
+        Write-Host "  📋 Found $($existingGroups.Count) total groups in tenant" -ForegroundColor Gray
+        
+        $missingGroups = @()
+        foreach ($groupName in $GroupNames) {
+            if ($groupName -in $existingGroups) {
+                Write-Host "  ✅ Found: $groupName" -ForegroundColor Green
+            } else {
+                Write-Host "  ❌ Missing: $groupName" -ForegroundColor Red
+                $missingGroups += $groupName
+            }
+        }
+        
+        $result = $missingGroups.Count -eq 0
+        Write-Host "  📊 Result: $result (Missing: $($missingGroups.Count))" -ForegroundColor $(if ($result) { "Green" } else { "Red" })
+        return $result
     }
     catch {
+        Write-Host "  ❌ Error checking groups: $($_.Exception.Message)" -ForegroundColor Red
         return $false
     }
 }
@@ -698,7 +714,11 @@ function Start-AutomationHub {
                     Write-Host "🔍 Prerequisite check completed!" -ForegroundColor Green
                 }
             }
-            "9" { Clear-ScriptCache }
+            "9" { 
+                Clear-ScriptCache 
+                Write-Host "🔄 Refreshing prerequisite status..." -ForegroundColor Yellow
+                Initialize-CompletedSteps
+            }
             "0" { 
                 Write-Host "Goodbye! 👋" -ForegroundColor Cyan
                 if ($Global:TenantConnection) { Disconnect-MgGraph -ErrorAction SilentlyContinue }
