@@ -1,0 +1,411 @@
+#Requires -Version 7.0
+
+<#
+.SYNOPSIS
+    Exchange Online Distribution List Manual Creation Script
+.DESCRIPTION
+    Interactive script for manually creating distribution lists in Exchange Online.
+    Integrates seamlessly with the Complete-365Tenant-Creation main menu system.
+.AUTHOR
+    CB & Claude Partnership
+.VERSION
+    1.0
+.NOTES
+    - Requires Exchange Online PowerShell v3.5.1+
+    - Must be called through main menu authentication system
+    - Uses modern REST API (no Basic Authentication)
+.EXAMPLE
+    Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1"
+#>
+
+# Required Modules and Roles
+$RequiredModules = @(
+    'ExchangeOnlineManagement'
+)
+
+$RequiredRoles = @(
+    "Exchange Administrator",
+    "Global Administrator", 
+    "Mail Recipients"
+)
+
+# Initialize modules function
+function Initialize-Modules {
+    <#
+    .SYNOPSIS
+        Checks and imports required PowerShell modules
+    .DESCRIPTION
+        Verifies ExchangeOnlineManagement module is available and imports it
+    #>
+    
+    Write-Host "🔧 Checking Exchange Online PowerShell module..." -ForegroundColor Cyan
+    
+    foreach ($Module in $RequiredModules) {
+        try {
+            # Check if module is installed
+            $installedModule = Get-Module -ListAvailable -Name $Module | Sort-Object Version -Descending | Select-Object -First 1
+            
+            if (!$installedModule) {
+                Write-Host "❌ Module $Module not found. Installing..." -ForegroundColor Yellow
+                Install-Module $Module -Force -Scope CurrentUser -AllowClobber
+                Write-Host "✅ Module $Module installed successfully" -ForegroundColor Green
+            } else {
+                Write-Host "✅ Module $Module found (Version: $($installedModule.Version))" -ForegroundColor Green
+            }
+            
+            # Import module if not already loaded
+            if (!(Get-Module -Name $Module)) {
+                Import-Module $Module -Force -Global
+                Write-Host "📦 Module $Module imported successfully" -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Error "❌ Failed to initialize module ${Module}: $($_.Exception.Message)"
+            return $false
+        }
+    }
+    return $true
+}
+
+# Test Exchange Online connection
+function Test-ExchangeConnection {
+    <#
+    .SYNOPSIS
+        Tests if Exchange Online connection is active
+    .DESCRIPTION
+        Verifies connection established by main menu is still active
+    #>
+    
+    Write-Host "🔗 Testing Exchange Online connection..." -ForegroundColor Cyan
+    
+    try {
+        # Test connection by running a simple cmdlet
+        $null = Get-AcceptedDomain -ErrorAction Stop | Select-Object -First 1
+        Write-Host "✅ Exchange Online connection active" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Host "❌ Exchange Online connection test failed" -ForegroundColor Red
+        Write-Host "💡 Please ensure you're connected through the main menu first" -ForegroundColor Yellow
+        Write-Host "   Required permissions: $($RequiredRoles -join ', ')" -ForegroundColor Yellow
+        return $false
+    }
+}
+
+# Validate email address format
+function Test-EmailFormat {
+    param(
+        [Parameter(Mandatory)]
+        [string]$EmailAddress
+    )
+    
+    $emailRegex = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return $EmailAddress -match $emailRegex
+}
+
+# Check if distribution group already exists
+function Test-DistributionGroupExists {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Identity
+    )
+    
+    try {
+        $null = Get-DistributionGroup -Identity $Identity -ErrorAction Stop
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+# Get accepted domain for validation
+function Get-AcceptedDomains {
+    try {
+        $domains = Get-AcceptedDomain | Select-Object DomainName
+        return $domains.DomainName
+    }
+    catch {
+        Write-Warning "Could not retrieve accepted domains for validation"
+        return @()
+    }
+}
+
+# Validate email domain against tenant domains
+function Test-EmailDomain {
+    param(
+        [Parameter(Mandatory)]
+        [string]$EmailAddress,
+        
+        [Parameter(Mandatory)]
+        [string[]]$AcceptedDomains
+    )
+    
+    $domain = ($EmailAddress -split '@')[1]
+    return $domain -in $AcceptedDomains
+}
+
+# Get user input with validation
+function Get-ValidatedInput {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Prompt,
+        
+        [Parameter(Mandatory)]
+        [string]$ValidationScript,
+        
+        [string]$ErrorMessage = "Invalid input. Please try again.",
+        
+        [string]$Example = ""
+    )
+    
+    do {
+        if ($Example) {
+            $input = Read-Host "$Prompt (Example: $Example)"
+        } else {
+            $input = Read-Host $Prompt
+        }
+        
+        $isValid = Invoke-Expression $ValidationScript
+        
+        if (!$isValid) {
+            Write-Host $ErrorMessage -ForegroundColor Red
+        }
+    } while (!$isValid)
+    
+    return $input
+}
+
+# Interactive distribution group creation
+function New-InteractiveDistributionGroup {
+    <#
+    .SYNOPSIS
+        Interactive function to create a new distribution group
+    .DESCRIPTION
+        Collects user input and creates a distribution group with comprehensive validation
+    #>
+    
+    Write-Host ""
+    Write-Host "=" * 60 -ForegroundColor Blue
+    Write-Host "📧 DISTRIBUTION GROUP CREATION WIZARD" -ForegroundColor Blue
+    Write-Host "=" * 60 -ForegroundColor Blue
+    Write-Host ""
+    
+    # Get accepted domains for validation
+    $acceptedDomains = Get-AcceptedDomains
+    Write-Host "📋 Available domains: $($acceptedDomains -join ', ')" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Collect Distribution Group Information
+    Write-Host "📝 Please provide the following information:" -ForegroundColor Yellow
+    Write-Host ""
+    
+    # Group Name
+    $groupName = Get-ValidatedInput -Prompt "Distribution Group Display Name" -ValidationScript "`$input.Length -gt 0 -and `$input.Length -le 256" -ErrorMessage "Group name cannot be empty and must be 256 characters or less" -Example "Marketing Team"
+    
+    # Email Address
+    $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$input) -and (Test-EmailDomain `$input @('$($acceptedDomains -join "','")')) -and -not (Test-DistributionGroupExists `$input)" -ErrorMessage "Invalid email format, domain not accepted by tenant, or email already exists" -Example "marketing@yourdomain.com"
+    
+    # Alias (derived from email if not specified)
+    $suggestedAlias = ($primaryEmail -split '@')[0] -replace '[^a-zA-Z0-9]', ''
+    $alias = Read-Host "Alias (press Enter to use '$suggestedAlias')"
+    if ([string]::IsNullOrWhiteSpace($alias)) {
+        $alias = $suggestedAlias
+    }
+    
+    # Description
+    $description = Read-Host "Description (optional)"
+    if ([string]::IsNullOrWhiteSpace($description)) {
+        $description = "Distribution group: $groupName"
+    }
+    
+    # Owner (Manager)
+    Write-Host ""
+    Write-Host "👤 Group Owner Configuration:" -ForegroundColor Yellow
+    $owner = Read-Host "Group Owner Email (press Enter to use current user)"
+    
+    # Join/Leave Restrictions
+    Write-Host ""
+    Write-Host "🔐 Group Membership Restrictions:" -ForegroundColor Yellow
+    Write-Host "1. Open - Anyone can join/leave"
+    Write-Host "2. Closed - Only owners can add/remove members"  
+    Write-Host "3. ApprovalRequired - Owner approval required to join"
+    
+    do {
+        $restrictionChoice = Read-Host "Select membership restriction (1-3)"
+        switch ($restrictionChoice) {
+            "1" { 
+                $joinRestriction = "Open"
+                $departRestriction = "Open"
+                $valid = $true
+            }
+            "2" { 
+                $joinRestriction = "Closed"
+                $departRestriction = "Closed" 
+                $valid = $true
+            }
+            "3" { 
+                $joinRestriction = "ApprovalRequired"
+                $departRestriction = "Closed"
+                $valid = $true
+            }
+            default { 
+                Write-Host "Invalid selection. Please choose 1, 2, or 3." -ForegroundColor Red
+                $valid = $false
+            }
+        }
+    } while (!$valid)
+    
+    # External Email Configuration
+    Write-Host ""
+    Write-Host "🌐 External Email Configuration:" -ForegroundColor Yellow
+    $allowExternal = Read-Host "Allow external senders to email this group? (y/N)"
+    $requireAuth = $allowExternal -notlike "y*"
+    
+    # Initial Members
+    Write-Host ""
+    Write-Host "👥 Initial Members (optional):" -ForegroundColor Yellow
+    Write-Host "Enter email addresses separated by commas, or press Enter to skip"
+    $membersInput = Read-Host "Initial members"
+    $members = @()
+    
+    if (![string]::IsNullOrWhiteSpace($membersInput)) {
+        $memberEmails = $membersInput -split ',' | ForEach-Object { $_.Trim() }
+        foreach ($email in $memberEmails) {
+            if (Test-EmailFormat $email) {
+                $members += $email
+            } else {
+                Write-Host "⚠️  Invalid email format: $email (skipped)" -ForegroundColor Yellow
+            }
+        }
+    }
+    
+    # Summary
+    Write-Host ""
+    Write-Host "📋 DISTRIBUTION GROUP SUMMARY:" -ForegroundColor Green
+    Write-Host "=" * 40 -ForegroundColor Green
+    Write-Host "Name: $groupName" -ForegroundColor White
+    Write-Host "Email: $primaryEmail" -ForegroundColor White  
+    Write-Host "Alias: $alias" -ForegroundColor White
+    Write-Host "Description: $description" -ForegroundColor White
+    Write-Host "Owner: $(if($owner) { $owner } else { 'Current user' })" -ForegroundColor White
+    Write-Host "Join Restriction: $joinRestriction" -ForegroundColor White
+    Write-Host "Leave Restriction: $departRestriction" -ForegroundColor White
+    Write-Host "External Senders: $(if($requireAuth) { 'Blocked' } else { 'Allowed' })" -ForegroundColor White
+    Write-Host "Initial Members: $(if($members.Count -gt 0) { $members.Count } else { 'None' })" -ForegroundColor White
+    Write-Host ""
+    
+    $confirm = Read-Host "Create this distribution group? (Y/n)"
+    if ($confirm -like "n*") {
+        Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
+        return
+    }
+    
+    # Create Distribution Group
+    Write-Host ""
+    Write-Host "🚀 Creating distribution group..." -ForegroundColor Cyan
+    
+    try {
+        $dgParams = @{
+            Name = $groupName
+            Alias = $alias
+            PrimarySmtpAddress = $primaryEmail
+            Type = "Distribution"
+            MemberJoinRestriction = $joinRestriction
+            MemberDepartRestriction = $departRestriction
+            RequireSenderAuthenticationEnabled = $requireAuth
+        }
+        
+        if ($description) {
+            $dgParams.Notes = $description
+        }
+        
+        if ($owner) {
+            $dgParams.ManagedBy = $owner
+        }
+        
+        if ($members.Count -gt 0) {
+            $dgParams.Members = $members
+        }
+        
+        $newGroup = New-DistributionGroup @dgParams
+        
+        Write-Host "✅ Distribution group '$groupName' created successfully!" -ForegroundColor Green
+        Write-Host "📧 Email address: $primaryEmail" -ForegroundColor Green
+        Write-Host "🆔 Group ID: $($newGroup.ExternalDirectoryObjectId)" -ForegroundColor Green
+        
+        # Additional member management if needed
+        if ($members.Count -eq 0) {
+            Write-Host ""
+            Write-Host "💡 Next Steps:" -ForegroundColor Yellow
+            Write-Host "   • Add members via Exchange Admin Center" -ForegroundColor White
+            Write-Host "   • Or use: Add-DistributionGroupMember -Identity '$primaryEmail' -Member 'user@domain.com'" -ForegroundColor White
+        }
+        
+        Write-Host ""
+        Write-Host "🔗 Manage this group at:" -ForegroundColor Cyan
+        Write-Host "   https://admin.exchange.microsoft.com/#/recipients/groups/distribution" -ForegroundColor Blue
+        
+    }
+    catch {
+        Write-Host "❌ Failed to create distribution group" -ForegroundColor Red
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+        
+        # Specific error guidance
+        if ($_.Exception.Message -like "*already exists*") {
+            Write-Host "💡 A group with this name or email address already exists" -ForegroundColor Yellow
+        } elseif ($_.Exception.Message -like "*permission*") {
+            Write-Host "💡 Insufficient permissions. Required roles: $($RequiredRoles -join ', ')" -ForegroundColor Yellow
+        } elseif ($_.Exception.Message -like "*domain*") {
+            Write-Host "💡 Email domain not accepted by your tenant" -ForegroundColor Yellow
+        }
+    }
+}
+
+# Main execution function
+function Start-DistributionListCreation {
+    <#
+    .SYNOPSIS
+        Main execution function for distribution list creation
+    .DESCRIPTION
+        Orchestrates the entire distribution list creation process
+    #>
+    
+    Write-Host "🔧 Loading Distribution List Creation Script..." -ForegroundColor Cyan
+    
+    # Step 1: Initialize modules
+    Write-Host "📦 Step 1: Initialize Modules" -ForegroundColor Cyan
+    if (!(Initialize-Modules)) {
+        Write-Host "❌ Module initialization failed. Cannot continue." -ForegroundColor Red
+        return
+    }
+    
+    # Step 2: Test Exchange connection  
+    Write-Host "🔗 Step 2: Test Exchange Connection" -ForegroundColor Cyan
+    if (!(Test-ExchangeConnection)) {
+        Write-Host "❌ Exchange connection test failed. Cannot continue." -ForegroundColor Red
+        Write-Host "💡 Please connect through the main menu first" -ForegroundColor Yellow
+        return
+    }
+    
+    # Step 3: Start interactive creation
+    Write-Host "🎯 Step 3: Start Distribution Group Creation" -ForegroundColor Cyan
+    
+    do {
+        New-InteractiveDistributionGroup
+        
+        Write-Host ""
+        $another = Read-Host "Create another distribution group? (y/N)"
+        
+    } while ($another -like "y*")
+    
+    Write-Host ""
+    Write-Host "✅ Distribution list creation completed!" -ForegroundColor Green
+    Write-Host "🔙 Returning to Exchange menu..." -ForegroundColor Cyan
+    
+    # Clean return to menu
+    Start-Sleep -Seconds 2
+}
+
+# Execute main function
+Start-DistributionListCreation
