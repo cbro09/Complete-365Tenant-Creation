@@ -2,10 +2,10 @@
 
 <#
 .SYNOPSIS
-    M365 Tenant Automation Hub - Universal Main Menu
+    M365 Tenant Automation Hub - Universal Main Menu with Prerequisites
 .DESCRIPTION
     Universal PowerShell 7 automation hub for Microsoft 365 tenant configuration.
-    Downloads latest scripts from GitHub and provides centralized authentication.
+    Downloads latest scripts from GitHub and provides centralized authentication with prerequisite blocking.
 .AUTHOR
     CB & Claude Partnership
 .VERSION
@@ -76,30 +76,134 @@ function Invoke-GitHubScript {
         if ($scriptContent) {
             $Global:ScriptCache[$ScriptPath] = $scriptContent
         } else {
-            return
+            return $null
         }
     }
     
     try {
         # Create script block and execute with parameters
         $scriptBlock = [ScriptBlock]::Create($scriptContent)
-        & $scriptBlock @Parameters
+        $result = & $scriptBlock @Parameters
+        
+        # Mark completion based on script path
+        Update-CompletionStatus -ScriptPath $ScriptPath -Success ($null -ne $result)
+        
+        return $result
     }
     catch {
         Write-Error "Error executing ${ScriptPath}: $($_.Exception.Message)"
+        return $null
     }
 }
+
 function Test-GroupsExist {
     param([string[]]$GroupNames)
-    $existingGroups = Get-MgGroup | Select-Object -ExpandProperty DisplayName
-    return ($GroupNames | ForEach-Object { $_ -in $existingGroups }) -notcontains $false
+    try {
+        $existingGroups = Get-MgGroup | Select-Object -ExpandProperty DisplayName
+        return ($GroupNames | ForEach-Object { $_ -in $existingGroups }) -notcontains $false
+    }
+    catch {
+        return $false
+    }
 }
 
 function Test-PoliciesExist {
     param([string[]]$PolicyNames)
-    $existingPolicies = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies" -Method GET |
-        Select-Object -ExpandProperty value | Select-Object -ExpandProperty name
-    return ($PolicyNames | ForEach-Object { $_ -in $existingPolicies }) -notcontains $false
+    try {
+        $existingPolicies = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/configurationPolicies" -Method GET |
+            Select-Object -ExpandProperty value | Select-Object -ExpandProperty name
+        return ($PolicyNames | ForEach-Object { $_ -in $existingPolicies }) -notcontains $false
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-ConditionalAccessPoliciesExist {
+    try {
+        $policies = Get-MgIdentityConditionalAccessPolicy -ErrorAction SilentlyContinue
+        return $policies.Count -gt 0
+    }
+    catch {
+        return $false
+    }
+}
+
+function Initialize-CompletedSteps {
+    Write-Host "🔍 Checking tenant prerequisites..." -ForegroundColor Yellow
+    
+    $Global:CompletedSteps = @{
+        SecurityGroups = Test-GroupsExist -GroupNames @(
+            "NoMFA Exclusion Group", "BITS Admin Users", "SSPR Eligible Users",
+            "License - Business Basic", "License - Business Standard",
+            "License - Business Premium", "License - Exchange Online Plan 1",
+            "License - Exchange Online Plan 2"
+        )
+        DeviceGroups = Test-GroupsExist -GroupNames @(
+            "Windows Devices (Autopilot)", "macOS Devices", "iOS Devices",
+            "Android Devices", "Corporate Owned Devices", "Personal Devices",
+            "Pilot Device Group"
+        )
+        ConfigPolicies = Test-PoliciesExist -PolicyNames @(
+            "Defender Configuration", "Enable Bitlocker", "EDR Policy",
+            "Office Updates Configuration", "OneDrive Configuration",
+            "Outlook Configuration", "Tamper Protection", "Web Sign-in Policy"
+        )
+        ConditionalAccess = Test-ConditionalAccessPoliciesExist
+        AdminAccounts = $false      # Placeholder until Admin script is built
+    }
+    
+    Write-Host "✅ Prerequisites checked!" -ForegroundColor Green
+}
+
+function Test-Prerequisites {
+    param([string]$RequiredStep)
+    
+    switch ($RequiredStep) {
+        "ConditionalAccess" { return $Global:CompletedSteps.SecurityGroups }
+        "AdminCreation" { return $Global:CompletedSteps.SecurityGroups }
+        "UserCreation" { return $Global:CompletedSteps.SecurityGroups }
+        "PasswordPolicies" { return $Global:CompletedSteps.AdminAccounts }
+        "ConfigPolicies" { return $Global:CompletedSteps.DeviceGroups }
+        "CompliancePolicies" { return $Global:CompletedSteps.DeviceGroups }
+        "AppDeployment" { return $Global:CompletedSteps.DeviceGroups }
+        "AutopilotConfig" { return $Global:CompletedSteps.DeviceGroups }
+        "ArchivePolicies" { return $Global:CompletedSteps.SecurityGroups }
+        "DistributionLists" { return $Global:CompletedSteps.SecurityGroups }
+        default { return $true }
+    }
+}
+
+function Update-CompletionStatus {
+    param(
+        [string]$ScriptPath,
+        [bool]$Success
+    )
+    
+    if (!$Success) { return }
+    
+    switch ($ScriptPath) {
+        "entra/Security-Groups.ps1" { 
+            $Global:CompletedSteps.SecurityGroups = $true
+            Write-Host "✅ Security Groups completed - Additional options now available!" -ForegroundColor Green
+        }
+        "Intune/Device-Groups.ps1" { 
+            $Global:CompletedSteps.DeviceGroups = $true
+            Write-Host "✅ Device Groups completed - Intune policies now available!" -ForegroundColor Green
+        }
+        "entra/CA-Policies.ps1" { 
+            $Global:CompletedSteps.ConditionalAccess = $true
+            Write-Host "✅ Conditional Access policies completed!" -ForegroundColor Green
+        }
+        "entra/Admin-Creation.ps1" { 
+            $Global:CompletedSteps.AdminAccounts = $true
+            Write-Host "✅ Admin Accounts completed - Password policies now available!" -ForegroundColor Green
+        }
+        "Intune/Configuration-Policies.ps1" { 
+            $Global:CompletedSteps.ConfigPolicies = $true
+            Write-Host "✅ Configuration policies completed!" -ForegroundColor Green
+        }
+    }
 }
 
 # Connect to Microsoft 365 Tenant
@@ -204,43 +308,7 @@ function Set-ServiceScopes {
     return $false
 }
 
-function Initialize-CompletedSteps {
-    $Global:CompletedSteps = @{
-        SecurityGroups = Test-GroupsExist -GroupNames @(
-            "NoMFA Exclusion Group", "BITS Admin Users", "SSPR Eligible Users",
-            "License - Business Basic", "License - Business Standard",
-            "License - Business Premium", "License - Exchange Online Plan 1",
-            "License - Exchange Online Plan 2"
-        )
-        DeviceGroups = Test-GroupsExist -GroupNames @(
-            "Windows Devices (Autopilot)", "macOS Devices", "iOS Devices",
-            "Android Devices", "Corporate Owned Devices", "Personal Devices",
-            "Pilot Device Group"
-        )
-        ConfigPolicies = Test-PoliciesExist -PolicyNames @(
-            "Defender Configuration", "Enable Bitlocker", "EDR Policy",
-            "Office Updates Configuration", "OneDrive Configuration",
-            "Outlook Configuration", "Tamper Protection", "Web Sign-in Policy"
-        )
-        ConditionalAccess = $false  # Placeholder until CA detection is added
-        AdminAccounts = $false      # Placeholder until Admin script is built
-    }
-}
-
-
-
-function Test-Prerequisites {
-    param([string]$RequiredStep)
-    
-    switch ($RequiredStep) {
-        "ConditionalAccess" { return $Global:CompletedSteps.SecurityGroups }
-        "AdminCreation" { return $Global:CompletedSteps.SecurityGroups }
-        "ConfigPolicies" { return $Global:CompletedSteps.DeviceGroups }
-        "CompliancePolicies" { return $Global:CompletedSteps.DeviceGroups }
-        default { return $true }
-    }
-}
-# Service menus
+# Service menus with prerequisite blocking
 function Show-EntraMenu {
     if (!(Set-ServiceScopes -Service "Entra")) { return }
     
@@ -248,24 +316,79 @@ function Show-EntraMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor Cyan
         Write-Host "🏢 ENTRA ID AUTOMATION" -ForegroundColor Cyan
         Write-Host "=" * 60 -ForegroundColor Cyan
-        Write-Host "1. Conditional Access Policies"
-        Write-Host "2. Admin Account Creation"
-        Write-Host "3. User Creation & Management"
-        Write-Host "4. Security Groups (Dynamic)"
-        Write-Host "5. Password Policies"
-        Write-Host "0. Back to Main Menu"
+        
+        # Security Groups - Always available (foundational)
+        Write-Host "1. 👥 Security Groups (Dynamic)" -ForegroundColor Green
+        
+        # Conditional Access - Requires Security Groups
+        if (Test-Prerequisites -RequiredStep "ConditionalAccess") {
+            Write-Host "2. 🛡️ Conditional Access Policies" -ForegroundColor Green
+        } else {
+            Write-Host "2. 🛡️ Conditional Access Policies [REQUIRES: Security Groups]" -ForegroundColor Red
+        }
+        
+        # Admin Creation - Requires Security Groups
+        if (Test-Prerequisites -RequiredStep "AdminCreation") {
+            Write-Host "3. 👑 Admin Account Creation" -ForegroundColor Green
+        } else {
+            Write-Host "3. 👑 Admin Account Creation [REQUIRES: Security Groups]" -ForegroundColor Red
+        }
+        
+        # User Creation - Requires Security Groups
+        if (Test-Prerequisites -RequiredStep "UserCreation") {
+            Write-Host "4. 👤 User Creation & Management" -ForegroundColor Green
+        } else {
+            Write-Host "4. 👤 User Creation & Management [REQUIRES: Security Groups]" -ForegroundColor Red
+        }
+        
+        # Password Policies - Requires Admin Accounts
+        if (Test-Prerequisites -RequiredStep "PasswordPolicies") {
+            Write-Host "5. 🔐 Password Policies" -ForegroundColor Green
+        } else {
+            Write-Host "5. 🔐 Password Policies [REQUIRES: Admin Accounts]" -ForegroundColor Red
+        }
+        
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "entra/CA-Policies.ps1" }
-            "2" { Invoke-GitHubScript -ScriptPath "entra/Admin-Creation.ps1" }
-            "3" { Invoke-GitHubScript -ScriptPath "entra/User-Creation.ps1" }
-            "4" { Invoke-GitHubScript -ScriptPath "entra/Security-Groups.ps1" }
-            "5" { Invoke-GitHubScript -ScriptPath "entra/Password-Policies.ps1" }
+            "1" { Invoke-GitHubScript -ScriptPath "entra/Security-Groups.ps1" }
+            "2" { 
+                if (Test-Prerequisites -RequiredStep "ConditionalAccess") {
+                    Invoke-GitHubScript -ScriptPath "entra/CA-Policies.ps1"
+                } else {
+                    Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "3" { 
+                if (Test-Prerequisites -RequiredStep "AdminCreation") {
+                    Invoke-GitHubScript -ScriptPath "entra/Admin-Creation.ps1"
+                } else {
+                    Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "4" { 
+                if (Test-Prerequisites -RequiredStep "UserCreation") {
+                    Invoke-GitHubScript -ScriptPath "entra/User-Creation.ps1"
+                } else {
+                    Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "5" { 
+                if (Test-Prerequisites -RequiredStep "PasswordPolicies") {
+                    Invoke-GitHubScript -ScriptPath "entra/Password-Policies.ps1"
+                } else {
+                    Write-Host "❌ Create Admin Accounts first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -277,24 +400,79 @@ function Show-IntuneMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor Magenta
         Write-Host "📱 INTUNE AUTOMATION" -ForegroundColor Magenta
         Write-Host "=" * 60 -ForegroundColor Magenta
-        Write-Host "1. Configuration Policies"
-        Write-Host "2. Compliance Policies"
-        Write-Host "3. Device Groups (OS-based)"
-        Write-Host "4. Application Deployment"
-        Write-Host "5. Autopilot Configuration"
-        Write-Host "0. Back to Main Menu"
+        
+        # Device Groups - Always available (foundational for Intune)
+        Write-Host "1. 📱 Device Groups (OS-based)" -ForegroundColor Green
+        
+        # Configuration Policies - Requires Device Groups
+        if (Test-Prerequisites -RequiredStep "ConfigPolicies") {
+            Write-Host "2. ⚙️ Configuration Policies" -ForegroundColor Green
+        } else {
+            Write-Host "2. ⚙️ Configuration Policies [REQUIRES: Device Groups]" -ForegroundColor Red
+        }
+        
+        # Compliance Policies - Requires Device Groups
+        if (Test-Prerequisites -RequiredStep "CompliancePolicies") {
+            Write-Host "3. ✅ Compliance Policies" -ForegroundColor Green
+        } else {
+            Write-Host "3. ✅ Compliance Policies [REQUIRES: Device Groups]" -ForegroundColor Red
+        }
+        
+        # App Deployment - Requires Device Groups
+        if (Test-Prerequisites -RequiredStep "AppDeployment") {
+            Write-Host "4. 📦 Application Deployment" -ForegroundColor Green
+        } else {
+            Write-Host "4. 📦 Application Deployment [REQUIRES: Device Groups]" -ForegroundColor Red
+        }
+        
+        # Autopilot - Requires Device Groups
+        if (Test-Prerequisites -RequiredStep "AutopilotConfig") {
+            Write-Host "5. 🚀 Autopilot Configuration" -ForegroundColor Green
+        } else {
+            Write-Host "5. 🚀 Autopilot Configuration [REQUIRES: Device Groups]" -ForegroundColor Red
+        }
+        
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
         
         switch ($choice) {
-            "1" { Invoke-GitHubScript -ScriptPath "Intune/Configuration-Policies.ps1" }
-            "2" { Invoke-GitHubScript -ScriptPath "Intune/Compliance-Policies.ps1" }
-            "3" { Invoke-GitHubScript -ScriptPath "Intune/Device-Groups.ps1" }
-            "4" { Invoke-GitHubScript -ScriptPath "Intune/App-Deployment.ps1" }
-            "5" { Invoke-GitHubScript -ScriptPath "Intune/Autopilot-Config.ps1" }
+            "1" { Invoke-GitHubScript -ScriptPath "Intune/Device-Groups.ps1" }
+            "2" { 
+                if (Test-Prerequisites -RequiredStep "ConfigPolicies") {
+                    Invoke-GitHubScript -ScriptPath "Intune/Configuration-Policies.ps1"
+                } else {
+                    Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "3" { 
+                if (Test-Prerequisites -RequiredStep "CompliancePolicies") {
+                    Invoke-GitHubScript -ScriptPath "Intune/Compliance-Policies.ps1"
+                } else {
+                    Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "4" { 
+                if (Test-Prerequisites -RequiredStep "AppDeployment") {
+                    Invoke-GitHubScript -ScriptPath "Intune/App-Deployment.ps1"
+                } else {
+                    Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "5" { 
+                if (Test-Prerequisites -RequiredStep "AutopilotConfig") {
+                    Invoke-GitHubScript -ScriptPath "Intune/Autopilot-Config.ps1"
+                } else {
+                    Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -306,22 +484,53 @@ function Show-ExchangeMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor Blue
         Write-Host "📧 EXCHANGE ONLINE AUTOMATION" -ForegroundColor Blue
         Write-Host "=" * 60 -ForegroundColor Blue
-        Write-Host "1. Shared Mailbox Creation"
-        Write-Host "2. Distribution Lists"
-        Write-Host "3. Archive Policies"
-        Write-Host "4. Mail Flow Rules"
-        Write-Host "0. Back to Main Menu"
+        
+        # Shared Mailboxes - Always available
+        Write-Host "1. 📫 Shared Mailbox Creation" -ForegroundColor Green
+        
+        # Archive Policies - Requires basic setup
+        if (Test-Prerequisites -RequiredStep "ArchivePolicies") {
+            Write-Host "2. 📦 Archive Policies" -ForegroundColor Green
+        } else {
+            Write-Host "2. 📦 Archive Policies [REQUIRES: Security Groups]" -ForegroundColor Red
+        }
+        
+        # Distribution Lists - Requires Security Groups
+        if (Test-Prerequisites -RequiredStep "DistributionLists") {
+            Write-Host "3. 📋 Distribution Lists" -ForegroundColor Green
+        } else {
+            Write-Host "3. 📋 Distribution Lists [REQUIRES: Security Groups]" -ForegroundColor Red
+        }
+        
+        # Mail Flow Rules - Always available
+        Write-Host "4. 📨 Mail Flow Rules" -ForegroundColor Green
+        
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
         
         switch ($choice) {
             "1" { Invoke-GitHubScript -ScriptPath "Exchange/Shared-MB-Creation.ps1" }
-            "2" { Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1" }
-            "3" { Invoke-GitHubScript -ScriptPath "Exchange/Archive-Policies.ps1" }
+            "2" { 
+                if (Test-Prerequisites -RequiredStep "ArchivePolicies") {
+                    Invoke-GitHubScript -ScriptPath "Exchange/Archive-Policies.ps1"
+                } else {
+                    Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
+            "3" { 
+                if (Test-Prerequisites -RequiredStep "DistributionLists") {
+                    Invoke-GitHubScript -ScriptPath "Exchange/Distribution-Lists.ps1"
+                } else {
+                    Write-Host "❌ Create Security Groups first!" -ForegroundColor Red
+                    Start-Sleep 2
+                }
+            }
             "4" { Invoke-GitHubScript -ScriptPath "Exchange/Mail-Flow-Rules.ps1" }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -333,10 +542,10 @@ function Show-SharePointMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor Green
         Write-Host "🌐 SHAREPOINT ONLINE AUTOMATION" -ForegroundColor Green
         Write-Host "=" * 60 -ForegroundColor Green
-        Write-Host "1. Site Collection Creation"
-        Write-Host "2. Permission Groups"
-        Write-Host "3. External Sharing Policies"
-        Write-Host "0. Back to Main Menu"
+        Write-Host "1. 🏢 Site Collection Creation" -ForegroundColor Green
+        Write-Host "2. 👥 Permission Groups" -ForegroundColor Green
+        Write-Host "3. 🔗 External Sharing Policies" -ForegroundColor Green
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
@@ -346,7 +555,7 @@ function Show-SharePointMenu {
             "2" { Invoke-GitHubScript -ScriptPath "SharePoint/Permission-Groups.ps1" }
             "3" { Invoke-GitHubScript -ScriptPath "SharePoint/External-Sharing.ps1" }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -358,10 +567,10 @@ function Show-SecurityMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor Red
         Write-Host "🛡️ SECURITY & DEFENDER AUTOMATION" -ForegroundColor Red
         Write-Host "=" * 60 -ForegroundColor Red
-        Write-Host "1. Web Content Filtering"
-        Write-Host "2. Safe Attachments/Links"
-        Write-Host "3. Anti-phishing Policies"
-        Write-Host "0. Back to Main Menu"
+        Write-Host "1. 🌐 Web Content Filtering" -ForegroundColor Green
+        Write-Host "2. 📎 Safe Attachments/Links" -ForegroundColor Green
+        Write-Host "3. 🎣 Anti-phishing Policies" -ForegroundColor Green
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
@@ -371,7 +580,7 @@ function Show-SecurityMenu {
             "2" { Invoke-GitHubScript -ScriptPath "Security/Safe-Attachments.ps1" }
             "3" { Invoke-GitHubScript -ScriptPath "Security/Anti-Phishing.ps1" }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -383,10 +592,10 @@ function Show-PurviewMenu {
         Write-Host "`n" + "=" * 60 -ForegroundColor DarkCyan
         Write-Host "🔒 PURVIEW COMPLIANCE AUTOMATION" -ForegroundColor DarkCyan
         Write-Host "=" * 60 -ForegroundColor DarkCyan
-        Write-Host "1. Retention Policies"
-        Write-Host "2. Data Loss Prevention"
-        Write-Host "3. Sensitivity Labels"
-        Write-Host "0. Back to Main Menu"
+        Write-Host "1. 📋 Retention Policies" -ForegroundColor Green
+        Write-Host "2. 🛡️ Data Loss Prevention" -ForegroundColor Green
+        Write-Host "3. 🏷️ Sensitivity Labels" -ForegroundColor Green
+        Write-Host "0. ⬅️ Back to Main Menu"
         Write-Host ""
         
         $choice = Read-Host "Select option"
@@ -396,7 +605,7 @@ function Show-PurviewMenu {
             "2" { Invoke-GitHubScript -ScriptPath "Purview/DLP-Policies.ps1" }
             "3" { Invoke-GitHubScript -ScriptPath "Purview/Sensitivity-Labels.ps1" }
             "0" { break }
-            default { Write-Host "Invalid option!" -ForegroundColor Red }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
@@ -417,6 +626,20 @@ function Show-MainMenu {
     if ($Global:TenantConnection) {
         Write-Host "✅ Connected to: $($Global:TenantConnection.OrgName)" -ForegroundColor Green
         Write-Host "   Account: $($Global:TenantConnection.Account)" -ForegroundColor Gray
+        
+        # Show completion status
+        Write-Host "`n📋 Prerequisites Status:" -ForegroundColor Yellow
+        $statusIcon = if ($Global:CompletedSteps.SecurityGroups) { "✅" } else { "⏳" }
+        Write-Host "   $statusIcon Security Groups" -ForegroundColor $(if ($Global:CompletedSteps.SecurityGroups) { "Green" } else { "Yellow" })
+        
+        $statusIcon = if ($Global:CompletedSteps.DeviceGroups) { "✅" } else { "⏳" }
+        Write-Host "   $statusIcon Device Groups" -ForegroundColor $(if ($Global:CompletedSteps.DeviceGroups) { "Green" } else { "Yellow" })
+        
+        $statusIcon = if ($Global:CompletedSteps.ConditionalAccess) { "✅" } else { "⏳" }
+        Write-Host "   $statusIcon Conditional Access" -ForegroundColor $(if ($Global:CompletedSteps.ConditionalAccess) { "Green" } else { "Yellow" })
+        
+        $statusIcon = if ($Global:CompletedSteps.ConfigPolicies) { "✅" } else { "⏳" }
+        Write-Host "   $statusIcon Configuration Policies" -ForegroundColor $(if ($Global:CompletedSteps.ConfigPolicies) { "Green" } else { "Yellow" })
     } else {
         Write-Host "❌ Not connected to tenant" -ForegroundColor Red
     }
@@ -470,20 +693,18 @@ function Start-AutomationHub {
                 else { Write-Host "Please connect to tenant first!" -ForegroundColor Red; Start-Sleep 2 }
             }
             "8" {
-    if (Connect-M365Tenant) {
-        Initialize-CompletedSteps
-        Write-Host "🔍 Prerequisite check completed!" -ForegroundColor Green
-    }
-}
-
-
+                if (Connect-M365Tenant) {
+                    Initialize-CompletedSteps
+                    Write-Host "🔍 Prerequisite check completed!" -ForegroundColor Green
+                }
+            }
             "9" { Clear-ScriptCache }
             "0" { 
                 Write-Host "Goodbye! 👋" -ForegroundColor Cyan
                 if ($Global:TenantConnection) { Disconnect-MgGraph -ErrorAction SilentlyContinue }
                 break 
             }
-            default { Write-Host "Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
+            default { Write-Host "❌ Invalid option!" -ForegroundColor Red; Start-Sleep 1 }
         }
     } while ($choice -ne "0")
 }
