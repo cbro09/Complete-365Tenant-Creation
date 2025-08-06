@@ -152,11 +152,14 @@ function Test-DistributionGroupExists {
 # Get accepted domain for validation
 function Get-AcceptedDomains {
     try {
-        $domains = Get-AcceptedDomain | Select-Object DomainName
-        return $domains.DomainName
+        Write-Host "🔍 Retrieving accepted domains..." -ForegroundColor Cyan
+        $domains = Get-AcceptedDomain -ErrorAction Stop | Select-Object -ExpandProperty DomainName
+        Write-Host "✅ Retrieved $($domains.Count) accepted domain(s)" -ForegroundColor Green
+        return $domains
     }
     catch {
-        Write-Warning "Could not retrieve accepted domains for validation"
+        Write-Host "⚠️  Could not retrieve accepted domains: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "   Email validation will be limited to format checking only" -ForegroundColor Yellow
         return @()
     }
 }
@@ -186,24 +189,37 @@ function Get-ValidatedInput {
         
         [string]$ErrorMessage = "Invalid input. Please try again.",
         
-        [string]$Example = ""
+        [string]$Example = "",
+        
+        [switch]$AllowCancel
     )
     
     do {
-        if ($Example) {
-            $input = Read-Host "$Prompt (Example: $Example)"
+        if ($Example -and $AllowCancel) {
+            $userInput = Read-Host "$Prompt (Example: $Example) [Enter 'exit' to cancel]"
+        } elseif ($Example) {
+            $userInput = Read-Host "$Prompt (Example: $Example)"
+        } elseif ($AllowCancel) {
+            $userInput = Read-Host "$Prompt [Enter 'exit' to cancel]"
         } else {
-            $input = Read-Host $Prompt
+            $userInput = Read-Host $Prompt
         }
         
-        $isValid = Invoke-Expression $ValidationScript
+        # Check for exit command
+        if ($AllowCancel -and ($userInput -eq 'exit' -or $userInput -eq 'quit' -or $userInput -eq 'cancel')) {
+            return $null
+        }
+        
+        # Replace $input with $userInput in validation script to avoid PowerShell reserved variable conflict
+        $validationScriptFixed = $ValidationScript -replace '\$input', '$userInput'
+        $isValid = Invoke-Expression $validationScriptFixed
         
         if (!$isValid) {
             Write-Host $ErrorMessage -ForegroundColor Red
         }
     } while (!$isValid)
     
-    return $input
+    return $userInput
 }
 
 # Interactive distribution group creation
@@ -221,20 +237,47 @@ function New-InteractiveDistributionGroup {
     Write-Host "=" * 60 -ForegroundColor Blue
     Write-Host ""
     
+    # Early exit option
+    Write-Host "🚀 Ready to create a new distribution group!" -ForegroundColor Green
+    $proceed = Read-Host "Continue with distribution group creation? (Y/n)"
+    if ($proceed -like "n*") {
+        Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
+        return
+    }
+    Write-Host ""
+    
     # Get accepted domains for validation
     $acceptedDomains = Get-AcceptedDomains
-    Write-Host "📋 Available domains: $($acceptedDomains -join ', ')" -ForegroundColor Cyan
+    if ($acceptedDomains.Count -eq 0) {
+        Write-Host "⚠️  Could not retrieve accepted domains - email validation will be basic format only" -ForegroundColor Yellow
+        $acceptedDomains = @()  # Empty array for safety
+    } else {
+        Write-Host "📋 Available domains: $($acceptedDomains -join ', ')" -ForegroundColor Cyan
+    }
     Write-Host ""
     
     # Collect Distribution Group Information
     Write-Host "📝 Please provide the following information:" -ForegroundColor Yellow
+    Write-Host "💡 Type 'exit' at any prompt to cancel and return to menu" -ForegroundColor Cyan
     Write-Host ""
     
     # Group Name
-    $groupName = Get-ValidatedInput -Prompt "Distribution Group Display Name" -ValidationScript "`$input.Length -gt 0 -and `$input.Length -le 256" -ErrorMessage "Group name cannot be empty and must be 256 characters or less" -Example "Marketing Team"
+    $groupName = Get-ValidatedInput -Prompt "Distribution Group Display Name" -ValidationScript "`$userInput.Length -gt 0 -and `$userInput.Length -le 256" -ErrorMessage "Group name cannot be empty and must be 256 characters or less" -Example "Marketing Team" -AllowCancel
+    if ($null -eq $groupName) {
+        Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
+        return
+    }
     
     # Email Address
-    $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$input) -and (Test-EmailDomain `$input @('$($acceptedDomains -join "','")')) -and -not (Test-DistributionGroupExists `$input)" -ErrorMessage "Invalid email format, domain not accepted by tenant, or email already exists" -Example "marketing@yourdomain.com"
+    if ($acceptedDomains.Count -gt 0) {
+        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and (Test-EmailDomain `$userInput @('$($acceptedDomains -join "','")')) -and -not (Test-DistributionGroupExists `$userInput)" -ErrorMessage "Invalid email format, domain not accepted by tenant, or email already exists" -Example "marketing@$($acceptedDomains[0])" -AllowCancel
+    } else {
+        $primaryEmail = Get-ValidatedInput -Prompt "Primary Email Address" -ValidationScript "(Test-EmailFormat `$userInput) -and -not (Test-DistributionGroupExists `$userInput)" -ErrorMessage "Invalid email format or email already exists" -Example "marketing@yourdomain.com" -AllowCancel
+    }
+    if ($null -eq $primaryEmail) {
+        Write-Host "❌ Distribution group creation cancelled" -ForegroundColor Yellow
+        return
+    }
     
     # Alias (derived from email if not specified)
     $suggestedAlias = ($primaryEmail -split '@')[0] -replace '[^a-zA-Z0-9]', ''
