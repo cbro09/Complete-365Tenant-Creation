@@ -59,7 +59,7 @@ function Initialize-Modules {
             
             # Import module with explicit parameters
             Write-Host "📦 Importing $Module module..." -ForegroundColor Cyan
-            Import-Module $Module -Force -Global -Scope Global
+            Import-Module $Module -Force -Scope Global
             
             # Verify key cmdlets are available after import
             $keyCmdlets = @('Connect-ExchangeOnline', 'Get-AcceptedDomain', 'New-DistributionGroup')
