@@ -29,7 +29,20 @@
     "requiredPasswordComplexity": "none",
     "passwordSignInFailureCountBeforeFactoryReset": null,
     "restrictedApps": [],
-    "roleScopeTagIds": ["0"]
+    "roleScopeTagIds": ["0"],
+    "scheduledActionsForRule": [
+      {
+        "ruleName": "PasswordRequired",
+        "scheduledActionConfigurations": [
+          {
+            "actionType": "block",
+            "gracePeriodHours": 0,
+            "notificationTemplateId": "",
+            "notificationMessageCCList": []
+          }
+        ]
+      }
+    ]
   },
   {
     "@odata.type": "#microsoft.graph.iosCompliancePolicy", 
@@ -54,7 +67,20 @@
     "managedEmailProfileRequired": false,
     "passcodeMinutesOfInactivityBeforeScreenTimeout": null,
     "restrictedApps": [],
-    "roleScopeTagIds": ["0"]
+    "roleScopeTagIds": ["0"],
+    "scheduledActionsForRule": [
+      {
+        "ruleName": "PasswordRequired", 
+        "scheduledActionConfigurations": [
+          {
+            "actionType": "block",
+            "gracePeriodHours": 0,
+            "notificationTemplateId": "",
+            "notificationMessageCCList": []
+          }
+        ]
+      }
+    ]
   },
   {
     "@odata.type": "#microsoft.graph.macOSCompliancePolicy",
@@ -81,7 +107,20 @@
     "deviceThreatProtectionEnabled": false,
     "deviceThreatProtectionRequiredSecurityLevel": "unavailable",
     "advancedThreatProtectionRequiredSecurityLevel": "unavailable",
-    "roleScopeTagIds": ["0"]
+    "roleScopeTagIds": ["0"],
+    "scheduledActionsForRule": [
+      {
+        "ruleName": "PasswordRequired",
+        "scheduledActionConfigurations": [
+          {
+            "actionType": "block",
+            "gracePeriodHours": 0,
+            "notificationTemplateId": "",
+            "notificationMessageCCList": []
+          }
+        ]
+      }
+    ]
   },
   {
     "@odata.type": "#microsoft.graph.windows10CompliancePolicy",
@@ -124,6 +163,19 @@
     "earlyLaunchAntiMalwareDriverEnabled": false,
     "requireHealthyDeviceReport": false,
     "wslDistributions": [],
-    "roleScopeTagIds": ["0"]
+    "roleScopeTagIds": ["0"],
+    "scheduledActionsForRule": [
+      {
+        "ruleName": "PasswordRequired",
+        "scheduledActionConfigurations": [
+          {
+            "actionType": "block",
+            "gracePeriodHours": 0,
+            "notificationTemplateId": "",
+            "notificationMessageCCList": []
+          }
+        ]
+      }
+    ]
   }
 ]
