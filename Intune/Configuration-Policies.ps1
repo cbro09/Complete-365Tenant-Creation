@@ -4,11 +4,11 @@
 .SYNOPSIS
     Creates comprehensive Intune configuration policies with full settings
 .DESCRIPTION
-    Creates 18 production-ready configuration policies using exported settings data (now includes NGP Windows Default Policy)
+    Creates 18 production-ready configuration policies using exported settings data
 .AUTHOR
     CB & Claude Partnership
 .VERSION
-    1.1 - Added NGP Windows Default Policy
+    1.1
 #>
 
 # Required Modules
@@ -19,7 +19,7 @@ $RequiredModules = @(
     'Microsoft.Graph.Identity.DirectoryManagement'
 )
 
-# Policy assignment configuration - UPDATED to include NGP Windows Default Policy
+# Policy assignment configuration
 function Get-PolicyAssignments {
     return @{
         "Default Web Pages" = @("Windows Devices (Autopilot)")
@@ -34,12 +34,12 @@ function Get-PolicyAssignments {
         "OneDrive Configuration" = @("Windows Devices (Autopilot)")
         "Outlook Configuration" = @("Windows Devices (Autopilot)")
         "Power Options" = @("Windows Devices (Autopilot)")
-        "Prevent Users From Unenrolling Devices" = @("Windows Devices (Autopilot)")
+        "Prevent Users From Unenrolling Devices" = @("Windows Devices (Autopilot)", "Corporate Owned Devices")
         "Sharepoint File Sync" = @("Windows Devices (Autopilot)")
         "System Services" = @("Windows Devices (Autopilot)")
         "Tamper Protection" = @("Windows Devices (Autopilot)")
         "Web Sign-in Policy" = @("Windows Devices (Autopilot)")
-        "NGP Windows Default Policy" = @("Windows Devices (Autopilot)")
+        "NGP Windows Default Policy" = @("Windows Devices (Autopilot)", "Corporate Owned Devices")
     }
 }
 
@@ -213,11 +213,6 @@ function New-ConfigurationPolicy {
         Write-Host "   Policy ID: $($newPolicy.id)" -ForegroundColor Gray
         Write-Host "   Settings: $($updatedPolicy.settings.Count)" -ForegroundColor Gray
         
-        # Special handling for NGP Windows Default Policy
-        if ($PolicyDefinition.name -eq "NGP Windows Default Policy") {
-            Write-Host "   🛡️ Microsoft Defender Antivirus policy with comprehensive security settings" -ForegroundColor Cyan
-        }
-        
         # Assign to device groups
         if ($DeviceGroupIds.Count -gt 0) {
             $assignmentBody = @{
@@ -281,7 +276,7 @@ function Start-ConfigurationPolicyCreation {
     $policies = Get-PolicyDefinitions
     $assignments = Get-PolicyAssignments
     
-    Write-Host "`n📋 Found $($policies.Count) policy definitions (including NGP Windows Default Policy)" -ForegroundColor Yellow
+    Write-Host "`n📋 Found $($policies.Count) policy definitions" -ForegroundColor Yellow
     
     # Resolve device group IDs
     Write-Host "`n🔍 Resolving device groups..." -ForegroundColor Yellow
@@ -363,8 +358,7 @@ function Start-ConfigurationPolicyCreation {
     Write-Host "   - BitLocker encryption with 30-day LAPS rotation" -ForegroundColor Gray
     Write-Host "   - OneDrive Known Folder Move" -ForegroundColor Gray  
     Write-Host "   - Edge browser policies with SharePoint homepage" -ForegroundColor Gray
-    Write-Host "   - Comprehensive Defender antivirus protection (NGP Policy)" -ForegroundColor Green
-    Write-Host "   - EDR and advanced threat protection" -ForegroundColor Gray
+    Write-Host "   - Defender and EDR configurations" -ForegroundColor Gray
     Write-Host "   - Power management and system services" -ForegroundColor Gray
     
     return $createdPolicies
@@ -377,7 +371,7 @@ try {
     
     if ($results) {
         Write-Host "`n🎉 Configuration policy creation completed!" -ForegroundColor Green
-        Write-Host "📋 Created $($results.Count) policies with full settings including NGP Windows Default Policy" -ForegroundColor Green
+        Write-Host "📋 Created $($results.Count) policies with full settings" -ForegroundColor Green
     }
 }
 catch {
