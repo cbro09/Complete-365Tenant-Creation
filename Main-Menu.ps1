@@ -138,6 +138,28 @@ function Test-ConditionalAccessPoliciesExist {
         return $false
     }
 }
+function Test-CompliancePoliciesExist {
+    try {
+        $policies = Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies" -Method GET -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty value
+        
+        # Check for our standard compliance policies
+        $expectedPolicies = @("Android Basic Compliance", "iOS Basic Compliance", "macOS Basic Compliance", "Windows 10/11 Basic Compliance")
+        $existingPolicyNames = $policies | Select-Object -ExpandProperty displayName
+        
+        $foundPolicies = 0
+        foreach ($expectedPolicy in $expectedPolicies) {
+            if ($expectedPolicy -in $existingPolicyNames) {
+                $foundPolicies++
+            }
+        }
+        
+        return $foundPolicies -ge 2  # At least 2 compliance policies exist (flexible threshold)
+    }
+    catch {
+        return $false
+    }
+}
 
 function Initialize-CompletedSteps {    
     $Global:CompletedSteps = @{
@@ -157,6 +179,7 @@ function Initialize-CompletedSteps {
             "Office Updates Configuration", "OneDrive Configuration",
             "Outlook Configuration", "Tamper Protection", "Web Sign-in Policy"
         )
+        CompliancePolicies = Test-CompliancePoliciesExist
         ConditionalAccess = Test-ConditionalAccessPoliciesExist
         AdminAccounts = $false      # Placeholder until Admin script is built
     }
@@ -172,7 +195,7 @@ function Test-Prerequisites {
         "PasswordPolicies" { return $Global:CompletedSteps.AdminAccounts }
         "ConfigPolicies" { return $Global:CompletedSteps.DeviceGroups }
         "CompliancePolicies" { return $Global:CompletedSteps.DeviceGroups }
-        "AppDeployment" { return $Global:CompletedSteps.DeviceGroups }
+        "AppDeployment" { return ($Global:CompletedSteps.DeviceGroups -and $Global:CompletedSteps.CompliancePolicies) }
         "AutopilotConfig" { return $Global:CompletedSteps.DeviceGroups }
         "ArchivePolicies" { return $Global:CompletedSteps.SecurityGroups }
         "DistributionLists" { return $Global:CompletedSteps.SecurityGroups }
@@ -414,11 +437,11 @@ function Show-IntuneMenu {
             Write-Host "3. ✅ Compliance Policies [REQUIRES: Device Groups]" -ForegroundColor Red
         }
         
-        # App Deployment - Requires Device Groups
+        # App Deployment - Requires Device Groups AND Compliance Policies
         if (Test-Prerequisites -RequiredStep "AppDeployment") {
             Write-Host "4. 📦 Application Deployment" -ForegroundColor Green
         } else {
-            Write-Host "4. 📦 Application Deployment [REQUIRES: Device Groups]" -ForegroundColor Red
+            Write-Host "4. 📦 Application Deployment [REQUIRES: Device Groups + Compliance Policies]" -ForegroundColor Red
         }
         
         # Autopilot - Requires Device Groups
@@ -465,7 +488,7 @@ function Show-IntuneMenu {
                     Write-Host "🔄 Refreshing menu options..." -ForegroundColor Gray
                     Initialize-CompletedSteps
                 } else {
-                    Write-Host "❌ Create Device Groups first!" -ForegroundColor Red
+                    Write-Host "❌ Create Device Groups and Compliance Policies first!" -ForegroundColor Red
                     Start-Sleep 2
                 }
             }
@@ -653,6 +676,7 @@ function Show-MainMenu {
         
         # Show completion status
         Write-Host "`n📋 Prerequisites Status:" -ForegroundColor Yellow
+        
         $statusIcon = if ($Global:CompletedSteps.SecurityGroups) { "✅" } else { "⏳" }
         Write-Host "   $statusIcon Security Groups" -ForegroundColor $(if ($Global:CompletedSteps.SecurityGroups) { "Green" } else { "Yellow" })
         
@@ -664,6 +688,9 @@ function Show-MainMenu {
         
         $statusIcon = if ($Global:CompletedSteps.ConfigPolicies) { "✅" } else { "⏳" }
         Write-Host "   $statusIcon Configuration Policies" -ForegroundColor $(if ($Global:CompletedSteps.ConfigPolicies) { "Green" } else { "Yellow" })
+        
+        $statusIcon = if ($Global:CompletedSteps.CompliancePolicies) { "✅" } else { "⏳" }
+        Write-Host "   $statusIcon Compliance Policies" -ForegroundColor $(if ($Global:CompletedSteps.CompliancePolicies) { "Green" } else { "Yellow" })
     } else {
         Write-Host "❌ Not connected to tenant" -ForegroundColor Red
     }
