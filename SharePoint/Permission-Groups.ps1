@@ -2,9 +2,9 @@
 
 <#
 .SYNOPSIS
-    Creates administrative accounts with proper role assignments
+    Manages SharePoint site permission groups and access levels
 .DESCRIPTION
-    Creates privileged administrative accounts with appropriate Azure AD roles and group memberships
+    Creates and configures SharePoint permission groups with appropriate access levels
 .AUTHOR
     CB & Claude Partnership
 .VERSION
@@ -14,10 +14,10 @@
 # Required Modules
 $RequiredModules = @(
     'Microsoft.Graph.Authentication',
-    'Microsoft.Graph.Users',
+    'Microsoft.Graph.Sites',
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Identity.DirectoryManagement',
-    'Microsoft.Graph.DeviceManagement.Enrolment'
+    'Microsoft.Graph.Users'
 )
 
 # Auto-install and import required modules
@@ -52,17 +52,17 @@ function Initialize-Modules {
 }
 
 # Main execution
-function Start-AdminCreation {
-    Write-Host "🚀 Starting Admin Account Creation..." -ForegroundColor Cyan
+function Start-PermissionGroups {
+    Write-Host "🚀 Starting SharePoint Permission Groups Configuration..." -ForegroundColor Cyan
     
     if (!(Initialize-Modules)) {
         Write-Error "Failed to initialize required modules. Exiting."
         return
     }
     
-    Write-Host "📋 Admin account creation functionality to be implemented..." -ForegroundColor Yellow
+    Write-Host "📋 SharePoint permission groups functionality to be implemented..." -ForegroundColor Yellow
     Write-Host "Required modules are now available for implementation." -ForegroundColor Green
 }
 
 # Execute the script
-Start-AdminCreation
+Start-PermissionGroups

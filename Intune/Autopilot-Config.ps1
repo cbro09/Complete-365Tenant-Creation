@@ -2,9 +2,9 @@
 
 <#
 .SYNOPSIS
-    Creates administrative accounts with proper role assignments
+    Configures Windows Autopilot deployment profiles and settings
 .DESCRIPTION
-    Creates privileged administrative accounts with appropriate Azure AD roles and group memberships
+    Manages Autopilot deployment profiles, device enrollment, and OOBE customization
 .AUTHOR
     CB & Claude Partnership
 .VERSION
@@ -14,10 +14,10 @@
 # Required Modules
 $RequiredModules = @(
     'Microsoft.Graph.Authentication',
-    'Microsoft.Graph.Users',
+    'Microsoft.Graph.DeviceManagement',
+    'Microsoft.Graph.DeviceManagement.Enrolment',
     'Microsoft.Graph.Groups',
-    'Microsoft.Graph.Identity.DirectoryManagement',
-    'Microsoft.Graph.DeviceManagement.Enrolment'
+    'Microsoft.Graph.Identity.DirectoryManagement'
 )
 
 # Auto-install and import required modules
@@ -52,17 +52,17 @@ function Initialize-Modules {
 }
 
 # Main execution
-function Start-AdminCreation {
-    Write-Host "🚀 Starting Admin Account Creation..." -ForegroundColor Cyan
+function Start-AutopilotConfig {
+    Write-Host "🚀 Starting Autopilot Configuration..." -ForegroundColor Cyan
     
     if (!(Initialize-Modules)) {
         Write-Error "Failed to initialize required modules. Exiting."
         return
     }
     
-    Write-Host "📋 Admin account creation functionality to be implemented..." -ForegroundColor Yellow
+    Write-Host "📋 Autopilot configuration functionality to be implemented..." -ForegroundColor Yellow
     Write-Host "Required modules are now available for implementation." -ForegroundColor Green
 }
 
 # Execute the script
-Start-AdminCreation
+Start-AutopilotConfig

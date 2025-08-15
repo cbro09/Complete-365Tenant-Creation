@@ -2,9 +2,9 @@
 
 <#
 .SYNOPSIS
-    Creates administrative accounts with proper role assignments
+    Configures Azure AD password policies and security defaults
 .DESCRIPTION
-    Creates privileged administrative accounts with appropriate Azure AD roles and group memberships
+    Manages password complexity, expiration, and authentication security policies
 .AUTHOR
     CB & Claude Partnership
 .VERSION
@@ -14,10 +14,9 @@
 # Required Modules
 $RequiredModules = @(
     'Microsoft.Graph.Authentication',
-    'Microsoft.Graph.Users',
-    'Microsoft.Graph.Groups',
     'Microsoft.Graph.Identity.DirectoryManagement',
-    'Microsoft.Graph.DeviceManagement.Enrolment'
+    'Microsoft.Graph.Users',
+    'Microsoft.Graph.Policies'
 )
 
 # Auto-install and import required modules
@@ -52,17 +51,17 @@ function Initialize-Modules {
 }
 
 # Main execution
-function Start-AdminCreation {
-    Write-Host "🚀 Starting Admin Account Creation..." -ForegroundColor Cyan
+function Start-PasswordPolicies {
+    Write-Host "🚀 Starting Password Policy Configuration..." -ForegroundColor Cyan
     
     if (!(Initialize-Modules)) {
         Write-Error "Failed to initialize required modules. Exiting."
         return
     }
     
-    Write-Host "📋 Admin account creation functionality to be implemented..." -ForegroundColor Yellow
+    Write-Host "📋 Password policy configuration functionality to be implemented..." -ForegroundColor Yellow
     Write-Host "Required modules are now available for implementation." -ForegroundColor Green
 }
 
 # Execute the script
-Start-AdminCreation
+Start-PasswordPolicies

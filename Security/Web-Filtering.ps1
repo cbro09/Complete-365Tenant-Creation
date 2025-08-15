@@ -2,9 +2,9 @@
 
 <#
 .SYNOPSIS
-    Creates administrative accounts with proper role assignments
+    Configures Microsoft Defender web content filtering policies
 .DESCRIPTION
-    Creates privileged administrative accounts with appropriate Azure AD roles and group memberships
+    Manages web content filtering, URL blocking, and safe browsing policies
 .AUTHOR
     CB & Claude Partnership
 .VERSION
@@ -14,10 +14,9 @@
 # Required Modules
 $RequiredModules = @(
     'Microsoft.Graph.Authentication',
-    'Microsoft.Graph.Users',
+    'Microsoft.Graph.Security',
     'Microsoft.Graph.Groups',
-    'Microsoft.Graph.Identity.DirectoryManagement',
-    'Microsoft.Graph.DeviceManagement.Enrolment'
+    'Microsoft.Graph.Identity.DirectoryManagement'
 )
 
 # Auto-install and import required modules
@@ -52,17 +51,17 @@ function Initialize-Modules {
 }
 
 # Main execution
-function Start-AdminCreation {
-    Write-Host "🚀 Starting Admin Account Creation..." -ForegroundColor Cyan
+function Start-WebFiltering {
+    Write-Host "🚀 Starting Web Content Filtering Configuration..." -ForegroundColor Cyan
     
     if (!(Initialize-Modules)) {
         Write-Error "Failed to initialize required modules. Exiting."
         return
     }
     
-    Write-Host "📋 Admin account creation functionality to be implemented..." -ForegroundColor Yellow
+    Write-Host "📋 Web filtering functionality to be implemented..." -ForegroundColor Yellow
     Write-Host "Required modules are now available for implementation." -ForegroundColor Green
 }
 
 # Execute the script
-Start-AdminCreation
+Start-WebFiltering
