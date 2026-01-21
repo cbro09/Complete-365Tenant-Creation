@@ -21,6 +21,60 @@ $Global:CurrentScopes = @()
 $Global:GitHubRepo = "cbro09/Complete-365Tenant-Creation"
 $Global:GitHubBranch = "main" # Change to "dev" for testing
 $Global:ScriptCache = @{}
+$Global:SharedHelpersLoaded = $false
+
+# Load Shared Helper Module
+function Initialize-SharedHelpers {
+    <#
+    .SYNOPSIS
+        Load the shared helper module from GitHub or local path
+    #>
+
+    if ($Global:SharedHelpersLoaded) {
+        return $true
+    }
+
+    $helperPath = "Shared/ScriptHelpers.ps1"
+
+    try {
+        # Try GitHub first
+        $url = "https://raw.githubusercontent.com/$Global:GitHubRepo/$Global:GitHubBranch/$helperPath"
+        $helperContent = Invoke-RestMethod -Uri $url -TimeoutSec 10 -ErrorAction Stop
+
+        # Execute the helper script to load functions
+        $scriptBlock = [ScriptBlock]::Create($helperContent)
+        . $scriptBlock
+
+        $Global:SharedHelpersLoaded = $true
+        Write-Host "   Shared helpers loaded from GitHub" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        # Try local path as fallback
+        $localPaths = @(
+            ".\Shared\ScriptHelpers.ps1",
+            "$PSScriptRoot\Shared\ScriptHelpers.ps1",
+            "Shared\ScriptHelpers.ps1"
+        )
+
+        foreach ($localPath in $localPaths) {
+            if (Test-Path $localPath -ErrorAction SilentlyContinue) {
+                try {
+                    . $localPath
+                    $Global:SharedHelpersLoaded = $true
+                    Write-Host "   Shared helpers loaded from local path" -ForegroundColor Green
+                    return $true
+                }
+                catch {
+                    continue
+                }
+            }
+        }
+
+        Write-Host "   Could not load shared helpers (non-critical)" -ForegroundColor Yellow
+        return $false
+    }
+}
 
 # Required Modules for Main Menu
 $RequiredModules = @(
@@ -2092,7 +2146,8 @@ function Show-DebugStatusOverride {
 # Main execution loop
 function Start-AutomationHub {
     Initialize-Modules
-    
+    Initialize-SharedHelpers
+
     # Try to load previous session state
     if (Load-SessionState) {
         Show-SessionInfo
