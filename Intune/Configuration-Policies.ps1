@@ -300,7 +300,8 @@ function Update-PolicyDynamicValues {
 
     $policyJson = $Policy | ConvertTo-Json -Depth 20
     $policyJson = $policyJson -replace "https://contoso\.sharepoint\.com/", $TenantInfo.SharePointUrl
-    $policyJson = $policyJson -replace '"Localadmin"', "`"$LapsAdminName`""
+    # Replace LAPS admin name in both policies (Enable Built-in Admin + LAPS)
+    $policyJson = $policyJson -replace '"BLadmin"', "`"$LapsAdminName`""
     $policyJson = $policyJson -replace 'tenantId=', "tenantId=$($TenantInfo.TenantId)"
 
     return $policyJson | ConvertFrom-Json -AsHashtable
