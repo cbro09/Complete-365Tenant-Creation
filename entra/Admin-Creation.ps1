@@ -29,7 +29,7 @@
 .AUTHOR
     CB & Claude Partnership
 .VERSION
-    2.2 - Cloud Admin uses Intune Admin + Device Local Admin (not GA)
+    2.3 - Idempotent: existing accounts get roles/groups checked and fixed
         - Auto-assigns Intune Help Desk Operator role to Helpdesk Operator Group
 #>
 
@@ -620,20 +620,21 @@ function Start-AdminCreation {
         if ($result.Success) {
             if ($result.Skipped) {
                 $results.Skipped += @{ Name = $account.DisplayName; UPN = $account.UPN }
+                Write-Host "     Already exists - checking groups and roles..." -ForegroundColor Gray
             }
             else {
                 $results.Created += @{ Name = $account.DisplayName; UPN = $account.UPN; Id = $result.User.Id }
                 $results.Passwords[$account.UPN] = $result.Password
+            }
 
-                # Add to groups
-                Write-Host "     Adding to groups..." -ForegroundColor Gray
-                Add-UserToGroups -User $result.User -GroupNames $account.Groups
+            # Add to groups (for both new and existing accounts)
+            Write-Host "     Adding to groups..." -ForegroundColor Gray
+            Add-UserToGroups -User $result.User -GroupNames $account.Groups
 
-                # Assign Entra ID roles
-                if ($account.EntraRoles -and $account.EntraRoles.Count -gt 0) {
-                    Write-Host "     Assigning Entra ID roles..." -ForegroundColor Gray
-                    Add-UserToEntraRoles -User $result.User -RoleNames $account.EntraRoles
-                }
+            # Assign Entra ID roles (for both new and existing accounts)
+            if ($account.EntraRoles -and $account.EntraRoles.Count -gt 0) {
+                Write-Host "     Assigning Entra ID roles..." -ForegroundColor Gray
+                Add-UserToEntraRoles -User $result.User -RoleNames $account.EntraRoles
             }
         }
         else {
