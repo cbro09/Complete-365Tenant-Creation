@@ -406,6 +406,9 @@ function Start-CompliancePolicyCreation {
     if (!(Test-Prerequisites)) {
         Write-Host ""
         Write-Host "  Prerequisites not met. Please resolve issues and try again." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Press any key to return to menu..." -ForegroundColor Gray
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 2 }
         return
     }
 
@@ -416,6 +419,9 @@ function Start-CompliancePolicyCreation {
     $tenantInfo = Get-TenantInfo
     if (!$tenantInfo) {
         Write-Host "   Failed to get tenant information" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Press any key to return to menu..." -ForegroundColor Gray
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 2 }
         return
     }
     Write-Host "   Tenant: $($tenantInfo.OrganizationName)" -ForegroundColor Green
@@ -424,6 +430,9 @@ function Start-CompliancePolicyCreation {
     $policies = Get-PolicyDefinitions
     if ($policies.Count -eq 0) {
         Write-Host "   No policies found to deploy" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Press any key to return to menu..." -ForegroundColor Gray
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 2 }
         return
     }
 
@@ -450,6 +459,9 @@ function Start-CompliancePolicyCreation {
     if ($confirm -notlike "Y*") {
         Write-Host ""
         Write-Host "  Cancelled by user" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  Press any key to return to menu..." -ForegroundColor Gray
+        try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep -Seconds 2 }
         return
     }
 
