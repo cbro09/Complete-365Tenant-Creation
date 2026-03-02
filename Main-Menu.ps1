@@ -1552,6 +1552,8 @@ function Set-ServiceScopes {
         catch {
             Write-Host "❌ Failed to obtain additional permissions: $($_.Exception.Message)" -ForegroundColor Red
             Write-Host "💡 You may need to consent to additional permissions in your browser" -ForegroundColor Yellow
+            Write-Host "Press any key to return to menu..." -ForegroundColor Gray
+            try { $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { Start-Sleep 3 }
             return $false
         }
     }
