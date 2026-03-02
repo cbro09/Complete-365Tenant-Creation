@@ -148,7 +148,6 @@ function Test-Prerequisites {
 function Test-DefenderLicense {
     try {
         # Check for Defender for Endpoint related SKUs
-        $org = Get-MgOrganization | Select-Object -First 1
         $subscribedSkus = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/subscribedSkus" -ErrorAction SilentlyContinue
 
         $defenderSkus = @(

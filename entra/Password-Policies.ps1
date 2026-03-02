@@ -138,7 +138,6 @@ function Set-PasswordNeverExpire {
 
     try {
         # Get current domain settings
-        $org = Get-MgOrganization | Select-Object -First 1
         $domains = Get-MgDomain -ErrorAction SilentlyContinue
 
         # Get the default/initial domain
@@ -151,7 +150,6 @@ function Set-PasswordNeverExpire {
 
         # Check current password policy
         $currentPolicy = $primaryDomain.PasswordValidityPeriodInDays
-        $currentNotification = $primaryDomain.PasswordNotificationWindowInDays
 
         Write-Host "     Current password validity: $currentPolicy days" -ForegroundColor Gray
 
@@ -193,9 +191,6 @@ function Set-SsprConfiguration {
 
     try {
         # Get current SSPR policy using direct API
-        $ssprUri = "https://graph.microsoft.com/beta/policies/authenticationMethodsPolicy"
-        $currentPolicy = Invoke-MgGraphRequest -Uri $ssprUri -Method GET -ErrorAction SilentlyContinue
-
         Write-Host "     Checking current SSPR configuration..." -ForegroundColor Gray
 
         # Configure SSPR to target the SSPR Eligible Users group

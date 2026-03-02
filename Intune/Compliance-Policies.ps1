@@ -353,7 +353,7 @@ function New-CompliancePolicy {
                 try {
                     # Use Invoke-MgGraphRequest instead of broken REST method
                     $assignmentUri = "https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies('$($newPolicy.id)')/assign"
-                    $assignResult = Invoke-MgGraphRequest -Uri $assignmentUri -Method POST -Body $assignmentBody
+                    Invoke-MgGraphRequest -Uri $assignmentUri -Method POST -Body $assignmentBody | Out-Null
 
                     Write-Host "     Assigned to $($assignmentBody.assignments.Count) group(s)" -ForegroundColor Green
                 }
