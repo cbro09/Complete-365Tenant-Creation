@@ -384,8 +384,6 @@ function Test-ConfigPoliciesExist {
         
         # Check how many core policies exist
         $coreExists = $corePolicies | Where-Object { $_ -in $existingPolicies }
-        $coreCompletionRate = $coreExists.Count / $corePolicies.Count
-        
         # Check if optional policies exist (bonus points but not required)
         $optionalExists = $optionalPolicies | Where-Object { $_ -in $existingPolicies }
         
@@ -640,7 +638,7 @@ function Save-SessionState {
     }
 }
 
-function Load-SessionState {
+function Import-SessionState {
     try {
         if (Test-Path $Global:StateFilePath) {
             $jsonState = Get-Content -Path $Global:StateFilePath -Raw
@@ -989,8 +987,7 @@ function Show-EnhancedProgressDashboard {
     $serviceProgress = Get-ServiceProgress -CompletedSteps $CompletedSteps
     $overallCompleted = ($serviceProgress.Values | Measure-Object -Property Completed -Sum).Sum
     $overallTotal = ($serviceProgress.Values | Measure-Object -Property Total -Sum).Sum
-    $overallPercentage = if ($overallTotal -gt 0) { [math]::Round(($overallCompleted / $overallTotal) * 100) } else { 0 }
-    
+
     Write-Host "╔═══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                          🚀 TENANT SETUP PROGRESS                             ║" -ForegroundColor Cyan
     Write-Host "╠═══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
@@ -2149,7 +2146,7 @@ function Start-AutomationHub {
     Initialize-SharedHelpers
 
     # Try to load previous session state
-    if (Load-SessionState) {
+    if (Import-SessionState) {
         Show-SessionInfo
     }
 
@@ -2236,7 +2233,7 @@ function Start-AutomationHub {
                 $services = @("Entra", "Intune", "Exchange", "SharePoint", "Security", "Purview")
                 foreach ($service in $services) {
                     Write-Host "$service Service:" -ForegroundColor White
-                    $authStatus = Test-ServiceAuthentication -Service $service -ShowStatus
+                    Test-ServiceAuthentication -Service $service -ShowStatus | Out-Null
                 }
                 
                 Write-Host ""

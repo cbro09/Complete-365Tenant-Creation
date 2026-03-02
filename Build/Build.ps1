@@ -45,11 +45,20 @@ if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
     Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
 }
 
+$SettingsFile = Join-Path $RepoRoot 'PSScriptAnalyzerSettings.psd1'
 $allResults = @()
 
 foreach ($folder in $SourceFolders) {
     if (Test-Path $folder) {
-        $results = Invoke-ScriptAnalyzer -Path $folder -Severity $Severity -ErrorAction SilentlyContinue
+        $analyzerParams = @{
+            Path          = $folder
+            Severity      = $Severity
+            ErrorAction   = 'SilentlyContinue'
+        }
+        if (Test-Path $SettingsFile) {
+            $analyzerParams['Settings'] = $SettingsFile
+        }
+        $results = Invoke-ScriptAnalyzer @analyzerParams
         $allResults += $results
     }
 }

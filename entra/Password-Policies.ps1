@@ -155,7 +155,7 @@ function Set-PasswordNeverExpire {
 
         Write-Host "     Current password validity: $currentPolicy days" -ForegroundColor Gray
 
-        if ($currentPolicy -eq 2147483647 -or $currentPolicy -eq $null) {
+        if ($currentPolicy -eq 2147483647 -or $null -eq $currentPolicy) {
             Write-Host "     Passwords already set to never expire" -ForegroundColor Green
             return @{ Success = $true; AlreadySet = $true }
         }
