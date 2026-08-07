@@ -9,6 +9,11 @@
 .AUTHOR
     BITS
 .VERSION
+    2.3 - Fix C004: retarget from high to medium user risk. C001 already
+          blocks high user risk outright, and a block from any applicable CA
+          policy always wins over other policies' grant controls, so a
+          second high-user-risk policy was dead code — it could never be
+          reached.
     2.2 - Auto-create the UK named location when the CA-GEO groups exist (so
           C007 geo-blocking is actually provisioned instead of silently
           skipped) and add C008 - Block Device Code Flow.
@@ -491,12 +496,18 @@ function Get-PolicyDefinitions {
             }
         },
         @{
-            displayName = "C004 - Require Password Change for High Risk Users"
+            # Medium, not high: C001 already blocks high user risk outright, and
+            # since a block always wins when multiple CA policies apply, a
+            # second high-user-risk policy here would never be reachable. MFA
+            # alone does NOT remediate user risk (only a password change does),
+            # so this pairs both — completing them clears the risk event and
+            # this won't re-trigger until a genuinely new risk signal appears.
+            displayName = "C004 - Require MFA and Password Change for Medium Risk Users"
             state = $PolicyState
             conditions = @{
                 applications = @{ includeApplications = @("All") }
                 clientAppTypes = @("all")
-                userRiskLevels = @("high")
+                userRiskLevels = @("medium")
                 users = @{
                     includeUsers = @("All")
                     excludeGroups = @($NoMfaGroupId)
